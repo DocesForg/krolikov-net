@@ -79,6 +79,22 @@ app.post("/api/gemini/recognize", memoryUpload.single("file"), async (req, res) 
   }
 });
 
+async function enrichLyricsResults(items) {
+  return Promise.all(
+    (Array.isArray(items) ? items : []).slice(0, 20).map(async (item) => {
+      const artist = String(item?.artistName || "").trim();
+      const title = String(item?.trackName || "").trim();
+      const artworkUrl = artist && title ? await findArtwork(artist, title).catch(() => null) : null;
+
+      return {
+        ...item,
+        album: item?.albumName || null,
+        artworkUrl,
+      };
+    }),
+  );
+}
+
 async function searchLrcLib(query) {
   const url = new URL("https://lrclib.net/api/search");
   url.searchParams.set("q", query);
@@ -134,7 +150,7 @@ app.get("/api/lyrics/search", async (req, res) => {
     // Одна строка — обычный поиск LRCLIB. Для нескольких строк
     // ищем каждую отдельно и затем объединяем совпадения.
     if (lines.length === 1) {
-      return res.json(await searchLrcLib(lines[0]));
+      return res.json(await enrichLyricsResults(await searchLrcLib(lines[0])));
     }
 
     const matches = new Map();
@@ -184,21 +200,7 @@ app.get("/api/lyrics/search", async (req, res) => {
       .slice(0, 20)
       .map(({ hits, matchedLines, ...item }) => item);
 
-    const enriched = await Promise.all(
-      sorted.map(async (item) => {
-        const artist = String(item?.artistName || "").trim();
-        const title = String(item?.trackName || "").trim();
-        const artworkUrl = artist && title ? await findArtwork(artist, title).catch(() => null) : null;
-
-        return {
-          ...item,
-          album: item?.albumName || null,
-          artworkUrl,
-        };
-      }),
-    );
-
-    return res.json(enriched);
+    return res.json(await enrichLyricsResults(sorted));
   } catch (error) {
     res.status(502).json({
       error: error instanceof Error
