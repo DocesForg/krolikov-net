@@ -109,6 +109,7 @@ app.post("/api/recognize/file", upload.single("file"), async (req, res) => {
 
     const recording = best?.recordings?.[0];
     const track = mapRecording(recording);
+    if (track) track.artworkUrl = await findArtwork(track.artist, track.title);
 
     res.json({
       track,
