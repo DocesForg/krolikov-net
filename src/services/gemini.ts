@@ -5,11 +5,7 @@ export class GeminiMusicService {
     const body = new FormData();
     body.append("file", file);
 
-    const response = await fetch("/api/gemini/recognize", {
-      method: "POST",
-      body,
-    });
-
+    const response = await fetch("/api/gemini/recognize", { method: "POST", body });
     const data = await response.json() as { track?: Track | null; error?: string };
     if (!response.ok) throw new Error(data.error || `Gemini HTTP ${response.status}`);
     return { track: data.track ?? null };
@@ -21,7 +17,6 @@ export class GeminiMusicService {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ track }),
     });
-
     const data = await response.json() as Partial<AiTrackInsight> & { error?: string };
     if (!response.ok) throw new Error(data.error || `Gemini HTTP ${response.status}`);
 
@@ -32,5 +27,14 @@ export class GeminiMusicService {
       similarArtists: Array.isArray(data.similarArtists) ? data.similarArtists.slice(0, 5).map(String) : [],
       recommendations: Array.isArray(data.recommendations) ? data.recommendations.slice(0, 5).map(String) : [],
     };
+  }
+
+  async findSimilarTracks(track: Track): Promise<Track[]> {
+    const insight = await this.analyzeTrack(track);
+    return insight.recommendations.map((recommendation) => ({
+      artist: "",
+      title: recommendation,
+      source: "Gemini recommendation",
+    }));
   }
 }
