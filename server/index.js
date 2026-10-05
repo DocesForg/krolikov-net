@@ -184,7 +184,21 @@ app.get("/api/lyrics/search", async (req, res) => {
       .slice(0, 20)
       .map(({ hits, matchedLines, ...item }) => item);
 
-    return res.json(sorted);
+    const enriched = await Promise.all(
+      sorted.map(async (item) => {
+        const artist = String(item?.artistName || "").trim();
+        const title = String(item?.trackName || "").trim();
+        const artworkUrl = artist && title ? await findArtwork(artist, title).catch(() => null) : null;
+
+        return {
+          ...item,
+          album: item?.albumName || null,
+          artworkUrl,
+        };
+      }),
+    );
+
+    return res.json(enriched);
   } catch (error) {
     res.status(502).json({
       error: error instanceof Error
