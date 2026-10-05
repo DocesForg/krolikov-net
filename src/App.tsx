@@ -13,6 +13,7 @@ export default function App() {
   const [dragging, setDragging] = useState(false);
   const [aiInsight, setAiInsight] = useState<import("./types/music").AiTrackInsight | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [expandedLyrics, setExpandedLyrics] = useState<string | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
 
@@ -145,12 +146,26 @@ export default function App() {
     </section>}
 
     {lyrics.length > 0 && <section className="results">
-      <div className="section-heading"><span>LYRICS</span><h2>Результаты по тексту</h2></div>
-      <div className="lyrics-grid">{lyrics.slice(0, 8).map((item, i) =>
-        <article className="lyrics-card" key={`${item.artist}-${item.track}-${i}`}>
-          <h3>{item.track}</h3><p>{item.artist}</p>
-          {item.plainLyrics && <div className="lyrics-preview">{item.plainLyrics.slice(0, 240)}…</div>}
-        </article>)}</div>
+      <div classN      <div className="lyrics-grid">{lyrics.slice(0, 8).map((item, i) => {
+        const key = item.artist + "-" + item.track + "-" + i;
+        const isExpanded = expandedLyrics === key;
+        const text = item.plainLyrics || item.syncedLyrics || "";
+        const preview = text.length > 240 ? text.slice(0, 240) + "…" : text;
+
+        return <article className={"lyrics-card " + (isExpanded ? "is-expanded" : "")} key={key}>
+          {item.artworkUrl
+            ? <img src={item.artworkUrl} alt="" className="lyrics-cover" />
+            : <div className="lyrics-cover placeholder">♪</div>}
+          <div className="lyrics-card-content">
+            <h3>{item.track}</h3><p>{item.artist}</p>
+            {item.album && <small>{item.album}</small>}
+            {text && <div className="lyrics-preview">{isExpanded ? text : preview}</div>}
+            {text.length > 240 && <button className="lyrics-toggle" onClick={() => setExpandedLyrics(isExpanded ? null : key)}>
+              {isExpanded ? "Свернуть текст ↑" : "Показать весь текст ↓"}
+            </button>}
+          </div>
+        </article>;
+      })}</div>
     </section>}
 
     {similar.length > 0 && <section className="results">
