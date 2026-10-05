@@ -72,7 +72,10 @@ export async function analyzeTrack(track) {
   "genres": ["жанр"],
   "mood": ["настроение"],
   "similarArtists": ["исполнитель"],
-  "recommendations": ["короткая причина, почему стоит послушать"]
+  "recommendations": ["короткая причина, почему стоит послушать"],
+  "similarTracks": [
+    {"artist": "исполнитель", "title": "название", "reason": "почему похож"}
+  ]
 }
 
 Не выдумывай факты, если не уверен. В каждом массиве максимум 5 элементов.`,
@@ -82,5 +85,17 @@ export async function analyzeTrack(track) {
     },
   });
 
-  return JSON.parse(response.text?.trim() || "{}");
+  const parsed = JSON.parse(response.text?.trim() || "{}");
+  return {
+    summary: typeof parsed.summary === "string" ? parsed.summary : "",
+    genres: Array.isArray(parsed.genres) ? parsed.genres.slice(0, 5).map(String) : [],
+    mood: Array.isArray(parsed.mood) ? parsed.mood.slice(0, 5).map(String) : [],
+    similarArtists: Array.isArray(parsed.similarArtists) ? parsed.similarArtists.slice(0, 5).map(String) : [],
+    recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations.slice(0, 5).map(String) : [],
+    similarTracks: Array.isArray(parsed.similarTracks) ? parsed.similarTracks.slice(0, 8).map((item) => ({
+      artist: String(item?.artist || ""),
+      title: String(item?.title || ""),
+      reason: String(item?.reason || ""),
+    })).filter((item) => item.artist && item.title) : [],
+  };
 }
