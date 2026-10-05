@@ -21,6 +21,26 @@ const port = Number(process.env.PORT || 3001);
 const acoustIdKey = process.env.ACOUSTID_CLIENT_KEY || "";
 app.use(express.json({ limit: "1mb" }));
 
+async function findArtwork(artist, title) {
+  const params = new URLSearchParams({
+    query: `recording:"${title}" AND artist:"${artist}"`,
+    fmt: "json",
+    limit: "3",
+  });
+
+  const response = await fetch(`https://musicbrainz.org/ws/2/recording/?${params}`, {
+    headers: { "User-Agent": "Krolikov/0.2.0 (music search app)" },
+  });
+  if (!response.ok) return null;
+
+  const data = await response.json();
+  const releaseId = data?.recordings?.[0]?.releases?.[0]?.id;
+  if (!releaseId) return null;
+
+  const cover = await fetch(`https://coverartarchive.org/release/${releaseId}/front-500`);
+  return cover.ok ? cover.url : null;
+}
+
 function mapRecording(recording) {
   const artist = recording?.artists?.[0]?.name || "";
   const title = recording?.title || "";
@@ -47,6 +67,7 @@ app.post("/api/gemini/recognize", memoryUpload.single("file"), async (req, res) 
           artist: String(result.artist),
           title: String(result.title),
           album: result.album ? String(result.album) : null,
+          artworkUrl: await findArtwork(String(result.artist), String(result.title)),
           source: "Gemini Audio AI",
         }
       : null;
