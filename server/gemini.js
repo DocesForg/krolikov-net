@@ -1,11 +1,13 @@
 import { GoogleGenAI } from "@google/genai";
 
-const apiKey = process.env.GEMINI_API_KEY || "";
-const model = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+function getConfig() {
+  const apiKey = process.env.GEMINI_API_KEY || "";
+  if (!apiKey) throw new Error("GEMINI_API_KEY не настроен");
+  return { apiKey, model: process.env.GEMINI_MODEL || "gemini-3.6-flash" };
+}
 
 function getClient() {
-  if (!apiKey) throw new Error("GEMINI_API_KEY не настроен");
-  return new GoogleGenAI({ apiKey });
+  return new GoogleGenAI({ apiKey: getConfig().apiKey });
 }
 
 export async function recognizeAudio(file) {
@@ -14,7 +16,7 @@ export async function recognizeAudio(file) {
   const base64 = buffer.toString("base64");
 
   const response = await client.models.generateContent({
-    model,
+    model: getConfig().model,
     contents: [{
       role: "user",
       parts: [
@@ -55,7 +57,7 @@ export async function analyzeTrack(track) {
   const client = getClient();
 
   const response = await client.models.generateContent({
-    model,
+    model: getConfig().model,
     contents: `Ты музыкальный AI-помощник сайта Krolikov.
 Проанализируй трек и верни строго JSON без markdown и пояснений.
 
