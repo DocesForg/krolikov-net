@@ -87,23 +87,31 @@ app.get("/api/lyrics/search", async (req, res) => {
   url.searchParams.set("q", query);
 
   let lastStatus = 503;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       const response = await fetch(url, {
         headers: {
           "User-Agent": "Krolikov/0.2.0 (https://github.com/DocesForg/krolikov-net)",
           Accept: "application/json",
         },
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(7000),
       });
+
       lastStatus = response.status;
       if (response.ok) return res.json(await response.json());
       if (![429, 500, 502, 503, 504].includes(response.status)) break;
-    } catch {}
-    await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+
+      const retryAfter = Number(response.headers.get("retry-after") || "0");
+      const waitMs = Math.min(Math.max(retryAfter * 1000, 1000 * (attempt + 1)), 4000);
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    } catch {
+      if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
   }
 
-  res.status(502).json({ error: `LRCLIB временно недоступен (HTTP ${lastStatus}). Попробуйте ещё раз через несколько секунд.` });
+  res.status(502).json({
+    error: `LRCLIB временно недоступен (HTTP ${lastStatus}). Попробуйте ещё раз через несколько секунд.`,
+  });
 });
 
 app.post("/api/gemini/analyze", async (req, res) => {
@@ -141,10 +149,17 @@ app.post("/api/recognize/file", upload.single("file"), async (req, res) => {
     res.json({
       track,
       score: best?.score ?? null,
+      candidates: candidates.length,
     });
   } catch (error) {
+    const raw = error && typeof error === "object" ? error : null;
+    const apiCode = raw?.error?.code;
+    const apiMessage = raw?.error?.message;
+
     res.status(502).json({
-      error: error instanceof Error ? error.message : "AcoustID не смог обработать файл",
+      error: apiCode === 4 || apiMessage === "invalid API key"
+        ? "AcoustID отклонил API-ключ. Нужен Application/Client API Key, а не User API Key."
+        : error instanceof Error ? error.message : "AcoustID не смог обработать файл",
     });
   } finally {
     await fs.rm(req.file.path, { force: true }).catch(() => undefined);
