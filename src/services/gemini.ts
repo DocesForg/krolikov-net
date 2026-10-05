@@ -14,13 +14,14 @@ export class GeminiMusicService {
   private readonly client: GoogleGenAI;
 
   constructor() {
-    if (!env.geminiApiKey) {
-      throw new Error("VITE_GEMINI_API_KEY не настроен");
-    }
     this.client = new GoogleGenAI({ apiKey: env.geminiApiKey });
   }
 
   async analyzeTrack(track: Track): Promise<AiTrackInsight> {
+    if (!env.geminiApiKey) {
+      throw new Error("VITE_GEMINI_API_KEY не настроен");
+    }
+
     const response = await this.client.models.generateContent({
       model: env.geminiModel,
       contents: `Ты музыкальный AI-помощник сайта Krolikov.
