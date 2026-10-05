@@ -1,17 +1,21 @@
-import type { MusicServices } from "../types/music";
-import { AuddRecognitionService } from "./audd";
+import type { MusicServices, Track } from "../types/music";
+import { AcoustIdRecognitionService } from "./acoustid";
 import { GeminiMusicService } from "./gemini";
 import { LrcLibLyricsService } from "./lrclib";
-import { LastFmRecommendationService } from "./lastfm";
+import { SpotifyRecommendationService } from "./spotify";
 
-const recognition = new AuddRecognitionService();
+const recognition = new AcoustIdRecognitionService();
 const lyrics = new LrcLibLyricsService();
-const recommendations = new LastFmRecommendationService();
+const spotify = new SpotifyRecommendationService();
 const ai = new GeminiMusicService();
 
 export const musicServices: MusicServices = {
   recognize: (file) => recognition.recognize(file),
+  recognizeFromMicrophone: (file) => ai.recognizeAudio(file),
   searchLyrics: (query) => lyrics.searchLyrics(query),
-  similarTracks: (track) => recommendations.similarTracks(track),
+  similarTracks: async (track: Track) => {
+    const insight = await ai.analyzeTrack(track);
+    return spotify.similarTracksByArtists(insight.similarArtists);
+  },
   analyzeTrack: (track) => ai.analyzeTrack(track),
 };
