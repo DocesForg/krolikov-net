@@ -3,6 +3,9 @@ import type { Lyrics } from "../types/music";
 interface LrcLibItem {
   trackName: string;
   artistName: string;
+  albumName?: string | null;
+  album?: string | null;
+  artworkUrl?: string | null;
   plainLyrics?: string | null;
   syncedLyrics?: string | null;
 }
@@ -35,6 +38,8 @@ export class LrcLibLyricsService {
       return data.map((item) => ({
         track: item.trackName,
         artist: item.artistName,
+        album: item.albumName ?? item.album ?? null,
+        artworkUrl: item.artworkUrl ?? null,
         plainLyrics: item.plainLyrics,
         syncedLyrics: item.syncedLyrics,
         source: "LRCLIB",
