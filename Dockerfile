@@ -1,5 +1,10 @@
-FROM node:22-alpine AS build
+FROM node:22-bookworm-slim
+
 WORKDIR /app
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ffmpeg libchromaprint-tools \
+  && rm -rf /var/lib/apt/lists/*
 
 COPY package.json ./
 RUN npm install
@@ -7,8 +12,9 @@ RUN npm install
 COPY . .
 RUN npm run build
 
-FROM nginx:1.29-alpine
-COPY --from=build /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+ENV NODE_ENV=production
+ENV PORT=80
+
 EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+
+CMD ["node", "server/index.js"]
