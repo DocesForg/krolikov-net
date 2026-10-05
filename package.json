@@ -1,16 +1,20 @@
 {
   "name": "krolikov-net",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server": "node server/index.js"
   },
   "dependencies": {
     "@google/genai": "^1.27.0",
     "@reduxjs/toolkit": "^2.9.0",
+    "acoustid": "^1.2.1",
+    "express": "^5.1.0",
+    "multer": "^2.0.2",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-redux": "^9.2.0"
