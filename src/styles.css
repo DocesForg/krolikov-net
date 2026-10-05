@@ -37,3 +37,49 @@
   color: #e7e9ee;
   background: rgba(255,255,255,.045);
 }
+
+.lyrics-card {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.lyrics-cover {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 14px;
+  display: block;
+}
+
+.lyrics-cover.placeholder {
+  display: grid;
+  place-items: center;
+  font-size: 34px;
+}
+
+.lyrics-card-content {
+  min-width: 0;
+}
+
+.lyrics-preview {
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.lyrics-toggle {
+  margin-top: 14px;
+}
+
+@media (max-width: 640px) {
+  .lyrics-card {
+    grid-template-columns: 72px 1fr;
+    gap: 12px;
+  }
+
+  .lyrics-cover {
+    width: 72px;
+    height: 72px;
+  }
+}
