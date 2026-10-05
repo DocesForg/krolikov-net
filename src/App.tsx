@@ -16,10 +16,12 @@ export default function App() {
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
 
-  const recognize = async (file: File) => {
+  const recognize = async (file: File, fromMicrophone = false) => {
     dispatch(startLoading());
     try {
-      const result = await musicServices.recognize(file);
+      const result = fromMicrophone
+        ? await musicServices.recognizeFromMicrophone(file)
+        : await musicServices.recognize(file);
       dispatch(setTrack(result.track));
       setAiInsight(null);
       if (!result.track) dispatch(setError("Трек не найден. Попробуйте другой фрагмент."));
@@ -65,7 +67,7 @@ export default function App() {
       mediaRecorder.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(chunks.current, { type: mediaRecorder.mimeType || "audio/webm" });
-        void recognize(new File([blob], "microphone.webm", { type: blob.type }));
+        void recognize(new File([blob], "microphone.webm", { type: blob.type }), true);
         setRecording(false);
       };
       mediaRecorder.start(); setRecording(true);
