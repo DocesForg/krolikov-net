@@ -21,24 +21,54 @@ const port = Number(process.env.PORT || 3001);
 const acoustIdKey = (process.env.ACOUSTID_CLIENT_KEY || "").trim();
 app.use(express.json({ limit: "1mb" }));
 
-async function findArtwork(artist, title) {
-  const params = new URLSearchParams({
-    query: `recording:"${title}" AND artist:"${artist}"`,
-    fmt: "json",
-    limit: "3",
-  });
+async function findArtwork(artist, title, album = null) {
+  const searches = [];
 
-  const response = await fetch(`https://musicbrainz.org/ws/2/recording/?${params}`, {
-    headers: { "User-Agent": "Krolikov/0.2.0 (music search app)" },
-  });
-  if (!response.ok) return null;
+  if (album) {
+    searches.push(
+      new URLSearchParams({
+        query: `release:"${album}" AND artist:"${artist}"`,
+        fmt: "json",
+        limit: "3",
+      }),
+    );
+  }
 
-  const data = await response.json();
-  const releaseId = data?.recordings?.[0]?.releases?.[0]?.id;
-  if (!releaseId) return null;
+  searches.push(
+    new URLSearchParams({
+      query: `recording:"${title}" AND artist:"${artist}"`,
+      fmt: "json",
+      limit: "3",
+    }),
+  );
 
-  const cover = await fetch(`https://coverartarchive.org/release/${releaseId}/front-500`);
-  return cover.ok ? cover.url : null;
+  for (const params of searches) {
+    try {
+      const response = await fetch(`https://musicbrainz.org/ws/2/${album && searches[0] === params ? "release" : "recording"}/?${params}`, {
+        headers: { "User-Agent": "Krolikov/0.2.0 (music search app)" },
+        signal: AbortSignal.timeout(7000),
+      });
+
+      if (!response.ok) continue;
+
+      const data = await response.json();
+      const releaseId = album && searches[0] === params
+        ? data?.releases?.[0]?.id
+        : data?.recordings?.[0]?.releases?.[0]?.id;
+
+      if (!releaseId) continue;
+
+      const cover = await fetch(`https://coverartarchive.org/release/${releaseId}/front-500`, {
+        signal: AbortSignal.timeout(7000),
+      });
+
+      if (cover.ok) return cover.url;
+    } catch {
+      // Переходим к следующему варианту поиска.
+    }
+  }
+
+  return null;
 }
 
 function mapRecording(recording) {
@@ -80,19 +110,36 @@ app.post("/api/gemini/recognize", memoryUpload.single("file"), async (req, res) 
 });
 
 async function enrichLyricsResults(items) {
-  return Promise.all(
-    (Array.isArray(items) ? items : []).slice(0, 20).map(async (item) => {
+  const results = (Array.isArray(items) ? items : []).slice(0, 20);
+
+  // MusicBrainz ограничивает частоту запросов, поэтому не отправляем 20 запросов одновременно.
+  // Первые 8 результатов соответствуют количеству карточек, которые показывает frontend.
+  const enriched = [];
+  for (let start = 0; start < results.length; start += 2) {
+    const batch = results.slice(start, start + 2);
+    const batchResults = await Promise.all(batch.map(async (item) => {
       const artist = String(item?.artistName || "").trim();
       const title = String(item?.trackName || "").trim();
-      const artworkUrl = artist && title ? await findArtwork(artist, title).catch(() => null) : null;
+      const album = String(item?.albumName || "").trim() || null;
+      const artworkUrl = artist && title
+        ? await findArtwork(artist, title, album).catch(() => null)
+        : null;
 
       return {
         ...item,
         album: item?.albumName || null,
         artworkUrl,
       };
-    }),
-  );
+    }));
+
+    enriched.push(...batchResults);
+    if (enriched.length >= 8) {
+      enriched.push(...results.slice(enriched.length));
+      break;
+    }
+  }
+
+  return enriched;
 }
 
 async function searchLrcLib(query) {
