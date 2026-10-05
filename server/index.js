@@ -118,8 +118,8 @@ async function searchLrcLib(query) {
 function splitLyricsQuery(query) {
   return [...new Set(
     query
-      .split(/\\r?\\n/)
-      .map((line) => line.replace(/\\s+/g, " ").trim())
+      .split(/\r?\n/)
+      .map((line) => line.replace(/\s+/g, " ").trim())
       .filter((line) => line.length >= 4),
   )].slice(0, 8);
 }
