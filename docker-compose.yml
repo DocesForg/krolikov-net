@@ -1,0 +1,11 @@
+services:
+  krolikov:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: krolikov
+    env_file:
+      - .env
+    ports:
+      - "3000:80"
+    restart: unless-stopped
