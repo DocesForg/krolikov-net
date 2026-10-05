@@ -6,4 +6,6 @@ export const env = {
   lrclibApiUrl: import.meta.env.VITE_LRCLIB_API_URL || "https://lrclib.net/api/",
   lastfmApiUrl: import.meta.env.VITE_LASTFM_API_URL || "https://ws.audioscrobbler.com/2.0/",
   lastfmApiKey: import.meta.env.VITE_LASTFM_API_KEY || "",
+  geminiApiKey: import.meta.env.VITE_GEMINI_API_KEY || "",
+  geminiModel: import.meta.env.VITE_GEMINI_MODEL || "gemini-3.6-flash",
 } as const;
