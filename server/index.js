@@ -179,75 +179,144 @@ async function searchLrcLib(query) {
 }
 
 function splitLyricsQuery(query) {
-  return [...new Set(
-    query
-      .split(/\r?\n/)
-      .map((line) => line.replace(/\s+/g, " ").trim())
-      .filter((line) => line.length >= 4),
-  )].slice(0, 8);
+  const normalized = query
+    .replace(/\\r/g, "")
+    .split("\n")
+    .map((line) => line.replace(/\\s+/g, " ").trim())
+    .filter(Boolean);
+
+  const lines = [...new Set(normalized.filter((line) => line.length >= 4))];
+
+  // LRCLIB лучше работает с ключевыми фразами, чем с огромным куском текста.
+  // Берём не только отдельные строки, но и соседние фразы по 5–10 слов.
+  const phrases = [];
+  for (const line of lines) {
+    const words = line.split(" ").filter(Boolean);
+
+    if (words.length <= 10) {
+      phrases.push(line);
+      continue;
+    }
+
+    for (let i = 0; i < words.length; i += 6) {
+      const phrase = words.slice(i, i + 10).join(" ");
+      if (phrase.length >= 12) phrases.push(phrase);
+    }
+  }
+
+  for (let i = 0; i < lines.length - 1; i += 1) {
+    const combined = `${lines[i]} ${lines[i + 1]}`;
+    const words = combined.split(" ").filter(Boolean);
+    if (words.length >= 5) {
+      phrases.push(words.slice(0, 10).join(" "));
+    }
+  }
+
+  return [...new Set(phrases)].slice(0, 12);
+}
+
+function normalizeLyricsText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\\[[^\\]]*\\]/g, " ")
+    .replace(/[^\\p{L}\\p{N}]+/gu, " ")
+    .replace(/\\s+/g, " ")
+    .trim();
+}
+
+function scoreLyricsMatch(item, queries) {
+  const haystack = normalizeLyricsText(
+    `${item?.plainLyrics || ""} ${item?.syncedLyrics || ""}`,
+  );
+
+  if (!haystack) return 0;
+
+  let score = 0;
+  for (const query of queries) {
+    const normalized = normalizeLyricsText(query);
+    if (!normalized) continue;
+
+    if (haystack.includes(normalized)) {
+      score += normalized.split(" ").length >= 6 ? 4 : 2;
+      continue;
+    }
+
+    const words = normalized.split(" ").filter((word) => word.length >= 3);
+    if (words.length < 3) continue;
+
+    const matched = words.filter((word) => haystack.includes(word)).length;
+    const ratio = matched / words.length;
+    if (ratio >= 0.7) score += 2;
+    else if (ratio >= 0.45) score += 1;
+  }
+
+  return score;
 }
 
 app.get("/api/lyrics/search", async (req, res) => {
   const query = String(req.query.q || "").trim();
   if (!query) return res.status(400).json({ error: "Поисковый запрос пуст" });
 
-  const lines = splitLyricsQuery(query);
+  const queries = splitLyricsQuery(query);
 
   try {
-    // Одна строка — обычный поиск LRCLIB. Для нескольких строк
-    // ищем каждую отдельно и затем объединяем совпадения.
-    if (lines.length === 1) {
-      return res.json(await enrichLyricsResults(await searchLrcLib(lines[0])));
-    }
-
     const matches = new Map();
-    const failedQueries = [];
 
-    // Ограничиваем параллелизм, чтобы не устроить burst запросов в LRCLIB.
-    for (let start = 0; start < lines.length; start += 3) {
-      const batch = lines.slice(start, start + 3);
-      const results = await Promise.all(batch.map(async (line) => {
+    // Запрашиваем LRCLIB по нескольким характерным фразам.
+    // Это позволяет искать целый куплет, не требуя от LRCLIB
+    // поддержки полнотекстового совпадения всего куплета.
+    for (let start = 0; start < queries.length; start += 3) {
+      const batch = queries.slice(start, start + 3);
+
+      const results = await Promise.all(batch.map(async (searchQuery) => {
         try {
-          return { line, items: await searchLrcLib(line) };
+          return await searchLrcLib(searchQuery);
         } catch {
-          failedQueries.push(line);
-          return { line, items: [] };
+          return [];
         }
       }));
 
-      for (const { line, items } of results) {
+      for (const items of results) {
         for (const item of items) {
           const key = [
             String(item?.artistName || "").trim().toLowerCase(),
             String(item?.trackName || "").trim().toLowerCase(),
+            String(item?.albumName || "").trim().toLowerCase(),
           ].join("::");
 
           if (!key || key === "::") continue;
 
           const current = matches.get(key);
           if (current) {
-            current.hits += 1;
-            current.matchedLines.push(line);
+            current.apiHits += 1;
           } else {
             matches.set(key, {
               ...item,
-              hits: 1,
-              matchedLines: [line],
+              apiHits: 1,
             });
           }
         }
       }
     }
 
-    const sorted = [...matches.values()]
+    const ranked = [...matches.values()]
+      .map((item) => ({
+        ...item,
+        textScore: scoreLyricsMatch(item, queries),
+      }))
       .sort((a, b) => {
-        if (b.hits !== a.hits) return b.hits - a.hits;
+        if (b.textScore !== a.textScore) return b.textScore - a.textScore;
+        if (b.apiHits !== a.apiHits) return b.apiHits - a.apiHits;
         return String(a.trackName || "").localeCompare(String(b.trackName || ""));
       })
       .slice(0, 20)
-      .map(({ hits, matchedLines, ...item }) => item);
+      .map(({ apiHits, textScore, ...item }) => item);
 
-    return res.json(await enrichLyricsResults(sorted));
+    if (ranked.length === 0) {
+      return res.json([]);
+    }
+
+    return res.json(await enrichLyricsResults(ranked));
   } catch (error) {
     res.status(502).json({
       error: error instanceof Error
