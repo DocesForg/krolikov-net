@@ -4,10 +4,15 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import acoustid from "acoustid";
+import { analyzeTrack, recognizeAudio } from "./gemini.js";
 
 const app = express();
 const upload = multer({
   dest: "/tmp/krolikov-audio",
+  limits: { fileSize: 20 * 1024 * 1024 },
+});
+const memoryUpload = multer({
+  storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 },
 });
 
@@ -37,6 +42,38 @@ function mapRecording(recording) {
     source: "AcoustID / MusicBrainz",
   };
 }
+
+app.post("/api/gemini/recognize", memoryUpload.single("file"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "Аудиофайл не передан" });
+
+  try {
+    const result = await recognizeAudio(req.file);
+    const track = result?.found && result?.artist && result?.title
+      ? {
+          artist: String(result.artist),
+          title: String(result.title),
+          album: result.album ? String(result.album) : null,
+          source: "Gemini Audio AI",
+        }
+      : null;
+    res.json({ track, confidence: result?.confidence ?? null });
+  } catch (error) {
+    res.status(502).json({
+      error: error instanceof Error ? error.message : "Gemini не смог распознать аудио",
+    });
+  }
+});
+
+app.post("/api/gemini/analyze", async (req, res) => {
+  try {
+    const result = await analyzeTrack(req.body?.track || {});
+    res.json(result);
+  } catch (error) {
+    res.status(502).json({
+      error: error instanceof Error ? error.message : "Gemini не смог проанализировать трек",
+    });
+  }
+});
 
 app.post("/api/recognize/file", upload.single("file"), async (req, res) => {
   if (!acoustIdKey) return res.status(500).json({ error: "ACOUSTID_CLIENT_KEY не настроен" });
