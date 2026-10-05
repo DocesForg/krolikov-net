@@ -9,26 +9,43 @@ interface LrcLibItem {
 
 export class LrcLibLyricsService {
   async searchLyrics(query: string): Promise<Lyrics[]> {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
+
     const url = new URL("/api/lyrics/search", window.location.origin);
-    url.searchParams.set("q", query.trim());
+    url.searchParams.set("q", trimmed);
 
-    const response = await fetch(url);
-    const data = await response.json() as LrcLibItem[] | { error?: string };
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 20000);
 
-    if (!response.ok) {
-      throw new Error(
-        typeof data === "object" && data && "error" in data && data.error
-          ? data.error
-          : `LRCLIB HTTP ${response.status}`,
-      );
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      const data = await response.json() as LrcLibItem[] | { error?: string };
+
+      if (!response.ok) {
+        throw new Error(
+          typeof data === "object" && data && "error" in data && data.error
+            ? data.error
+            : `LRCLIB HTTP ${response.status}`,
+        );
+      }
+
+      if (!Array.isArray(data)) return [];
+
+      return data.map((item) => ({
+        track: item.trackName,
+        artist: item.artistName,
+        plainLyrics: item.plainLyrics,
+        syncedLyrics: item.syncedLyrics,
+        source: "LRCLIB",
+      }));
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw new Error("Поиск текста занял слишком много времени. LRCLIB сейчас отвечает медленно.");
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeout);
     }
-
-    return (data as LrcLibItem[]).map((item) => ({
-      track: item.trackName,
-      artist: item.artistName,
-      plainLyrics: item.plainLyrics,
-      syncedLyrics: item.syncedLyrics,
-      source: "LRCLIB",
-    }));
   }
 }
