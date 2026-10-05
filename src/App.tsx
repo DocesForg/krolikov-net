@@ -123,10 +123,20 @@ export default function App() {
             <button onClick={() => void findSimilar(track)}>Похожие треки</button>
             <button onClick={() => void analyzeWithAi(track)} disabled={aiLoading}>
               {aiLoading ? "AI анализирует…" : "AI-анализ"}
+            </button>
             {track.songUrl && <a href={track.songUrl} target="_blank" rel="noreferrer">Открыть трек ↗</a>}
           </div>
         </div>
       </div>
+      {aiInsight && <div className="ai-card">
+        <div className="section-heading"><span>GEMINI AI</span><h2>AI-анализ трека</h2></div>
+        {aiInsight.summary && <p>{aiInsight.summary}</p>}
+        <div className="ai-tags">
+          {[...aiInsight.genres, ...aiInsight.mood].map((item) => <span key={item}>{item}</span>)}
+        </div>
+        {aiInsight.similarArtists.length > 0 && <p><strong>Похожие исполнители:</strong> {aiInsight.similarArtists.join(", ")}</p>}
+        {aiInsight.recommendations.length > 0 && <ul>{aiInsight.recommendations.map((item, i) => <li key={i}>{item}</li>)}</ul>}
+      </div>}
     </section>}
 
     {lyrics.length > 0 && <section className="results">
