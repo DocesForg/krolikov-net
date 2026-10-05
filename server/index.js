@@ -141,7 +141,10 @@ app.post("/api/spotify/similar", async (req, res) => {
 
 const distPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
 app.use(express.static(distPath));
-app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
+app.use((req, res) => {
+  if (req.method === "GET") return res.sendFile(path.join(distPath, "index.html"));
+  res.status(404).json({ error: "Not found" });
+});
 
 app.listen(port, () => {
   console.log(`Krolikov server listening on :${port}`);
