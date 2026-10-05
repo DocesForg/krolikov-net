@@ -1,17 +1,60 @@
 # Krolikov
 
-Локальный frontend для поиска музыки по аудиофрагменту, микрофону и тексту песни.
+Сайт для поиска музыки по аудиофайлу, записи с микрофона и тексту песни.
+
+## Архитектура
+
+```
+                    KROLIKOV
+                       │
+            ┌──────────┴──────────┐
+            │                     │
+         ФАЙЛ                  МИКРОФОН
+            │                     │
+            ↓                     ↓
+       Chromaprint             Gemini
+            │                 Audio AI
+            ↓                     │
+         AcoustID                  │
+            │                     │
+            └──────────┬──────────┘
+                       ↓
+                 Найденный трек
+                       │
+          ┌────────────┼────────────┐
+          ↓            ↓            ↓
+       LRCLIB       Spotify      Gemini
+        lyrics       tracks        AI
+```
+
+### Распознавание файла
+
+Frontend отправляет файл на `/api/recognize/file`. Backend использует `fpcalc`/Chromaprint, затем отправляет fingerprint в AcoustID и получает связанные MusicBrainz recordings.
+
+### Распознавание микрофона
+
+Браузер записывает короткий фрагмент через `MediaRecorder` и передаёт аудио в Gemini Audio AI. Gemini возвращает наиболее вероятные artist/title в структурированном JSON.
+
+### Похожие треки
+
+Gemini определяет похожих исполнителей, после чего backend ищет реальные треки этих исполнителей через Spotify Web API. Spotify Client Secret хранится только на backend.
+
+### Тексты
+
+LRCLIB используется для поиска текста песни по названию, исполнителю или фрагменту текста.
 
 ## Стек
 
 - Vite + React + TypeScript
 - Redux Toolkit
-- AudD — распознавание музыки
-- LRCLIB — поиск текстов
-- Last.fm — похожие треки
-- Gemini API — AI-анализ найденного трека
-- Multi-stage Docker build
-- nginx для раздачи статического `dist`
+- Chromaprint / fpcalc
+- AcoustID + MusicBrainz
+- Gemini API
+- LRCLIB
+- Spotify Web API
+- Express backend
+- Docker
+- nginx config сохранён для возможного разделения frontend/API
 
 ## Запуск
 
@@ -21,40 +64,51 @@ npm install
 npm run dev
 ```
 
-Для распознавания звука укажите `VITE_AUDD_API_TOKEN`.
+Для локального frontend API используется proxy Vite на `http://localhost:3001`. В отдельном терминале:
 
-Для похожих треков укажите `VITE_LASTFM_API_KEY`.
+```bash
+npm run server
+```
 
-Для AI-функций укажите `VITE_GEMINI_API_KEY`. Модель задаётся через `VITE_GEMINI_MODEL` (по умолчанию `gemini-3.6-flash`). Gemini используется для анализа жанров, настроения, похожих исполнителей и музыкальных рекомендаций.
+Для распознавания файлов нужен `fpcalc` (Chromaprint).
+
+## Переменные
+
+Frontend:
+
+- `VITE_GEMINI_API_KEY`
+- `VITE_GEMINI_MODEL`
+- `VITE_LRCLIB_API_URL`
+
+Backend:
+
+- `ACOUSTID_CLIENT_KEY`
+- `SPOTIFY_CLIENT_ID`
+- `SPOTIFY_CLIENT_SECRET`
+- `SPOTIFY_MARKET`
+
+AcoustID требует зарегистрированный application API key. Spotify использует Client Credentials на сервере; секрет не должен быть переменной `VITE_*`.
 
 ## Docker
 
 ```bash
 docker build -t krolikov-net .
-docker run --rm -p 8080:80 krolikov-net
+docker run --rm -p 8080:80 \
+  -e ACOUSTID_CLIENT_KEY=... \
+  -e SPOTIFY_CLIENT_ID=... \
+  -e SPOTIFY_CLIENT_SECRET=... \
+  -e VITE_GEMINI_API_KEY=... \
+  krolikov-net
 ```
 
-Важно: переменные `VITE_*` подставляются Vite во время сборки. API token, переданный в `VITE_*`, попадёт в клиентский JavaScript и поэтому не является секретом.
+Vite-переменные в текущей архитектуре встраиваются при сборке образа, поэтому `VITE_GEMINI_API_KEY` не является секретом. На следующем этапе Gemini можно также перенести в backend, чтобы ключ вообще не попадал в браузер.
 
-Если token должен оставаться секретным, следующий этап архитектуры — маленький backend/BFF между nginx и внешними API. Сам frontend при этом останется полностью статическим.
-
-## Архитектура
-
-UI не знает конкретные API. Входная точка `src/services/music.ts` реализует DI-композицию:
-
-- `AuddRecognitionService`
-- `LrcLibLyricsService`
-- `LastFmRecommendationService`
-
-Поэтому провайдера можно заменить без переписывания компонентов.
-
-## Возможности MVP
+## Возможности
 
 1. Drag & drop аудиофайла.
-2. Выбор локального аудиофайла.
-3. Запись до 12 секунд с микрофона.
-4. Распознавание исполнителя/названия.
-5. Поиск по названию, исполнителю или строке текста.
-6. Выдача похожих треков.
-7. AI-анализ найденного трека через Gemini.
-8. Ссылки на найденный трек и обложка, если провайдер их вернул.
+2. Распознавание файла через Chromaprint + AcoustID.
+3. Запись до 12 секунд с микрофона и распознавание через Gemini Audio AI.
+4. Поиск текста через LRCLIB.
+5. Поиск похожих треков через Gemini + Spotify.
+6. AI-анализ найденного трека.
+7. Ссылки на Spotify и обложки, когда они доступны.
