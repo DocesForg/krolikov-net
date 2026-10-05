@@ -109,7 +109,13 @@ export default function App() {
 
       <div className="divider"><span>или поиск по тексту</span></div>
       <form className="search" onSubmit={(e) => { e.preventDefault(); void searchLyrics(); }}>
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Название, исполнитель или строка из песни..." />
+        <textarea
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={"Название, исполнитель или строки из песни…\nМожно вставить несколько строк — каждая с новой строки"}
+          rows={3}
+          aria-label="Поиск по тексту песни"
+        />
         <button type="submit" disabled={loading}>{loading ? "Ищем…" : "Найти"}</button>
       </form>
     </section>
