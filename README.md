@@ -23,7 +23,7 @@
                        │
           ┌────────────┼────────────┐
           ↓            ↓            ↓
-       LRCLIB       Spotify      Gemini
+       LRCLIB       MusicBrainz / Cover Art Archive      Gemini
         lyrics       tracks        AI
 ```
 
@@ -37,7 +37,7 @@ Frontend отправляет файл на `/api/recognize/file`. Backend ис�
 
 ### Похожие треки
 
-Gemini определяет похожих исполнителей, после чего backend ищет реальные треки этих исполнителей через Spotify Web API. Spotify Client Secret хранится только на backend.
+Gemini определяет похожих исполнителей, после чего backend ищет реальные треки этих исполнителей через MusicBrainz / Cover Art Archive Web API. MusicBrainz / Cover Art Archive Client Secret хранится только на backend.
 
 ### Тексты
 
@@ -51,7 +51,7 @@ LRCLIB используется для поиска текста песни по
 - AcoustID + MusicBrainz
 - Gemini API
 - LRCLIB
-- Spotify Web API
+- MusicBrainz / Cover Art Archive Web API
 - Express backend
 - Docker
 - nginx config сохранён для возможного разделения frontend/API
@@ -83,11 +83,11 @@ Frontend:
 Backend:
 
 - `ACOUSTID_CLIENT_KEY`
-- `SPOTIFY_CLIENT_ID`
-- `SPOTIFY_CLIENT_SECRET`
-- `SPOTIFY_MARKET`
+- `MusicBrainz / Cover Art Archive_CLIENT_ID`
+- `MusicBrainz / Cover Art Archive_CLIENT_SECRET`
+- `MusicBrainz / Cover Art Archive_MARKET`
 
-AcoustID требует зарегистрированный application API key. Spotify использует Client Credentials на сервере; секрет не должен быть переменной `VITE_*`.
+AcoustID требует зарегистрированный application API key. MusicBrainz / Cover Art Archive использует Client Credentials на сервере; секрет не должен быть переменной `VITE_*`.
 
 ## Docker
 
@@ -95,13 +95,13 @@ AcoustID требует зарегистрированный application API key
 docker build -t krolikov-net .
 docker run --rm -p 8080:80 \
   -e ACOUSTID_CLIENT_KEY=... \
-  -e SPOTIFY_CLIENT_ID=... \
-  -e SPOTIFY_CLIENT_SECRET=... \
+  -e MusicBrainz / Cover Art Archive_CLIENT_ID=... \
+  -e MusicBrainz / Cover Art Archive_CLIENT_SECRET=... \
   -e VITE_GEMINI_API_KEY=... \
   krolikov-net
 ```
 
-Gemini и Spotify теперь вызываются через backend, поэтому их ключи не попадают в клиентский JavaScript.
+Gemini и MusicBrainz / Cover Art Archive теперь вызываются через backend, поэтому их ключи не попадают в клиентский JavaScript.
 
 ## Возможности
 
@@ -109,6 +109,6 @@ Gemini и Spotify теперь вызываются через backend, поэт
 2. Распознавание файла через Chromaprint + AcoustID.
 3. Запись до 12 секунд с микрофона и распознавание через Gemini Audio AI.
 4. Поиск текста через LRCLIB.
-5. Поиск похожих треков через Gemini + Spotify.
+5. Поиск похожих треков через Gemini.
 6. AI-анализ найденного трека.
-7. Ссылки на Spotify и обложки, когда они доступны.
+7. Ссылки на MusicBrainz / Cover Art Archive и обложки, когда они доступны.
