@@ -146,7 +146,8 @@ export default function App() {
     </section>}
 
     {lyrics.length > 0 && <section className="results">
-      <div classN      <div className="lyrics-grid">{lyrics.slice(0, 8).map((item, i) => {
+      <div className="section-heading"><span>LYRICS</span><h2>Результаты по тексту</h2></div>
+      <div className="lyrics-grid">{lyrics.slice(0, 8).map((item, i) => {
         const key = item.artist + "-" + item.track + "-" + i;
         const isExpanded = expandedLyrics === key;
         const text = item.plainLyrics || item.syncedLyrics || "";
