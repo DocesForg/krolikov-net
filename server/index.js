@@ -79,10 +79,7 @@ app.post("/api/gemini/recognize", memoryUpload.single("file"), async (req, res) 
   }
 });
 
-app.get("/api/lyrics/search", async (req, res) => {
-  const query = String(req.query.q || "").trim();
-  if (!query) return res.status(400).json({ error: "Поисковый запрос пуст" });
-
+async function searchLrcLib(query) {
   const url = new URL("https://lrclib.net/api/search");
   url.searchParams.set("q", query);
 
@@ -98,7 +95,11 @@ app.get("/api/lyrics/search", async (req, res) => {
       });
 
       lastStatus = response.status;
-      if (response.ok) return res.json(await response.json());
+      if (response.ok) {
+        const data = await response.json();
+        return Array.isArray(data) ? data : [];
+      }
+
       if (![429, 500, 502, 503, 504].includes(response.status)) break;
 
       const retryAfter = Number(response.headers.get("retry-after") || "0");
@@ -109,9 +110,88 @@ app.get("/api/lyrics/search", async (req, res) => {
     }
   }
 
-  res.status(502).json({
-    error: `LRCLIB временно недоступен (HTTP ${lastStatus}). Попробуйте ещё раз через несколько секунд.`,
-  });
+  const error = new Error(`LRCLIB временно недоступен (HTTP ${lastStatus})`);
+  error.code = lastStatus;
+  throw error;
+}
+
+function splitLyricsQuery(query) {
+  return [...new Set(
+    query
+      .split(/\\r?\\n/)
+      .map((line) => line.replace(/\\s+/g, " ").trim())
+      .filter((line) => line.length >= 4),
+  )].slice(0, 8);
+}
+
+app.get("/api/lyrics/search", async (req, res) => {
+  const query = String(req.query.q || "").trim();
+  if (!query) return res.status(400).json({ error: "Поисковый запрос пуст" });
+
+  const lines = splitLyricsQuery(query);
+
+  try {
+    // Одна строка — обычный поиск LRCLIB. Для нескольких строк
+    // ищем каждую отдельно и затем объединяем совпадения.
+    if (lines.length === 1) {
+      return res.json(await searchLrcLib(lines[0]));
+    }
+
+    const matches = new Map();
+    const failedQueries = [];
+
+    // Ограничиваем параллелизм, чтобы не устроить burst запросов в LRCLIB.
+    for (let start = 0; start < lines.length; start += 3) {
+      const batch = lines.slice(start, start + 3);
+      const results = await Promise.all(batch.map(async (line) => {
+        try {
+          return { line, items: await searchLrcLib(line) };
+        } catch {
+          failedQueries.push(line);
+          return { line, items: [] };
+        }
+      }));
+
+      for (const { line, items } of results) {
+        for (const item of items) {
+          const key = [
+            String(item?.artistName || "").trim().toLowerCase(),
+            String(item?.trackName || "").trim().toLowerCase(),
+          ].join("::");
+
+          if (!key || key === "::") continue;
+
+          const current = matches.get(key);
+          if (current) {
+            current.hits += 1;
+            current.matchedLines.push(line);
+          } else {
+            matches.set(key, {
+              ...item,
+              hits: 1,
+              matchedLines: [line],
+            });
+          }
+        }
+      }
+    }
+
+    const sorted = [...matches.values()]
+      .sort((a, b) => {
+        if (b.hits !== a.hits) return b.hits - a.hits;
+        return String(a.trackName || "").localeCompare(String(b.trackName || ""));
+      })
+      .slice(0, 20)
+      .map(({ hits, matchedLines, ...item }) => item);
+
+    return res.json(sorted);
+  } catch (error) {
+    res.status(502).json({
+      error: error instanceof Error
+        ? error.message
+        : "LRCLIB временно недоступен. Попробуйте ещё раз через несколько секунд.",
+    });
+  }
 });
 
 app.post("/api/gemini/analyze", async (req, res) => {
