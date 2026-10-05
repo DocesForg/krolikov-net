@@ -18,7 +18,7 @@ const memoryUpload = multer({
 });
 
 const port = Number(process.env.PORT || 3001);
-const acoustIdKey = process.env.ACOUSTID_CLIENT_KEY || "";
+const acoustIdKey = (process.env.ACOUSTID_CLIENT_KEY || "").trim();
 app.use(express.json({ limit: "1mb" }));
 
 async function findArtwork(artist, title) {
@@ -77,6 +77,33 @@ app.post("/api/gemini/recognize", memoryUpload.single("file"), async (req, res) 
       error: error instanceof Error ? error.message : "Gemini не смог распознать аудио",
     });
   }
+});
+
+app.get("/api/lyrics/search", async (req, res) => {
+  const query = String(req.query.q || "").trim();
+  if (!query) return res.status(400).json({ error: "Поисковый запрос пуст" });
+
+  const url = new URL("https://lrclib.net/api/search");
+  url.searchParams.set("q", query);
+
+  let lastStatus = 503;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          "User-Agent": "Krolikov/0.2.0 (https://github.com/DocesForg/krolikov-net)",
+          Accept: "application/json",
+        },
+        signal: AbortSignal.timeout(10000),
+      });
+      lastStatus = response.status;
+      if (response.ok) return res.json(await response.json());
+      if (![429, 500, 502, 503, 504].includes(response.status)) break;
+    } catch {}
+    await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
+  }
+
+  res.status(502).json({ error: `LRCLIB временно недоступен (HTTP ${lastStatus}). Попробуйте ещё раз через несколько секунд.` });
 });
 
 app.post("/api/gemini/analyze", async (req, res) => {
