@@ -13,6 +13,8 @@ export interface Track {
 export interface Lyrics {
   track: string;
   artist: string;
+  album?: string | null;
+  artworkUrl?: string | null;
   plainLyrics?: string | null;
   syncedLyrics?: string | null;
   source: string;
