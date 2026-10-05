@@ -30,6 +30,7 @@ export interface MusicRecognition { track: Track | null; }
 
 export interface MusicServices {
   recognize(file: File): Promise<MusicRecognition>;
+  recognizeFromMicrophone(file: File): Promise<MusicRecognition>;
   searchLyrics(query: string): Promise<Lyrics[]>;
   similarTracks(track: Track): Promise<Track[]>;
   analyzeTrack(track: Track): Promise<AiTrackInsight>;
