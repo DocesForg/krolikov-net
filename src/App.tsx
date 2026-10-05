@@ -11,6 +11,8 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [recording, setRecording] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [aiInsight, setAiInsight] = useState<import("./types/music").AiTrackInsight | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
 
@@ -19,6 +21,7 @@ export default function App() {
     try {
       const result = await musicServices.recognize(file);
       dispatch(setTrack(result.track));
+      setAiInsight(null);
       if (!result.track) dispatch(setError("Трек не найден. Попробуйте другой фрагмент."));
     } catch (e) { dispatch(setError(e instanceof Error ? e.message : "Ошибка распознавания")); }
   };
@@ -34,6 +37,17 @@ export default function App() {
     dispatch(startLoading());
     try { dispatch(setLyrics(await musicServices.searchLyrics(query))); }
     catch (e) { dispatch(setError(e instanceof Error ? e.message : "Ошибка поиска текста")); }
+  };
+
+  const analyzeWithAi = async (source: Track) => {
+    setAiLoading(true);
+    try {
+      setAiInsight(await musicServices.analyzeTrack(source));
+    } catch (e) {
+      dispatch(setError(e instanceof Error ? e.message : "Ошибка AI-анализа"));
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   const findSimilar = async (source: Track) => {
@@ -107,6 +121,8 @@ export default function App() {
           {track.timecode && <small>Фрагмент: {track.timecode}</small>}
           <div className="actions">
             <button onClick={() => void findSimilar(track)}>Похожие треки</button>
+            <button onClick={() => void analyzeWithAi(track)} disabled={aiLoading}>
+              {aiLoading ? "AI анализирует…" : "AI-анализ"}
             {track.songUrl && <a href={track.songUrl} target="_blank" rel="noreferrer">Открыть трек ↗</a>}
           </div>
         </div>
