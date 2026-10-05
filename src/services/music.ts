@@ -8,7 +8,15 @@ const lyrics = new LrcLibLyricsService();
 const ai = new GeminiMusicService();
 
 export const musicServices: MusicServices = {
-  recognize: (file) => recognition.recognize(file),
+  recognize: async (file) => {
+    try {
+      const result = await recognition.recognize(file);
+      if (result.track) return result;
+      return ai.recognizeAudio(file);
+    } catch {
+      return ai.recognizeAudio(file);
+    }
+  },
   recognizeFromMicrophone: (file) => ai.recognizeAudio(file),
   searchLyrics: (query) => lyrics.searchLyrics(query),
   similarTracks: (track) => ai.findSimilarTracks(track),
