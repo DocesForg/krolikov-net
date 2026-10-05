@@ -178,18 +178,201 @@ async function searchLrcLib(query) {
   throw error;
 }
 
+const LYRICS_STOP_WORDS = new Set([
+  "a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "from",
+  "in", "is", "it", "of", "on", "or", "that", "the", "to", "was", "we",
+  "with", "you", "your", "i", "im", "ive", "ill", "id"
+]);
+
 function normalizeLyricsText(value) {
   return String(value || "")
-    .toLowerCase()
+    .normalize("NFKC")
+    .toLocaleLowerCase()
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .replace(/&/g, " and ")
+    .replace(/@/g, " at ")
+    .replace(/\b(can['’]?t)\b/g, "cannot")
+    .replace(/\b(won['’]?t)\b/g, "will not")
+    .replace(/\b(don['’]?t)\b/g, "do not")
+    .replace(/\b(doesn['’]?t)\b/g, "does not")
+    .replace(/\b(didn['’]?t)\b/g, "did not")
+    .replace(/\b(isn['’]?t)\b/g, "is not")
+    .replace(/\b(aren['’]?t)\b/g, "are not")
+    .replace(/\b(wasn['’]?t)\b/g, "was not")
+    .replace(/\b(weren['’]?t)\b/g, "were not")
+    .replace(/\b(i['’]?m)\b/g, "i am")
+    .replace(/\b(i['’]?ve)\b/g, "i have")
+    .replace(/\b(i['’]?ll)\b/g, "i will")
+    .replace(/\b(i['’]?d)\b/g, "i would")
+    .replace(/\b(you['’]?re)\b/g, "you are")
+    .replace(/\b(you['’]?ve)\b/g, "you have")
+    .replace(/\b(you['’]?ll)\b/g, "you will")
+    .replace(/\b(we['’]?re)\b/g, "we are")
+    .replace(/\b(we['’]?ve)\b/g, "we have")
+    .replace(/\b(they['’]?re)\b/g, "they are")
+    .replace(/\b(they['’]?ve)\b/g, "they have")
     .replace(/\[[^\]]*\]/g, " ")
-    .replace(/[’']/g, "")
+    .replace(/<[^>]*>/g, " ")
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function lyricsTokens(value) {
-  return normalizeLyricsText(value).split(" ").filter(Boolean);
+function lyricsTokens(value, { meaningfulOnly = false } = {}) {
+  const tokens = normalizeLyricsText(value).split(" ").filter(Boolean);
+  return meaningfulOnly
+    ? tokens.filter((token) => token.length > 1 && !LYRICS_STOP_WORDS.has(token))
+    : tokens;
+}
+
+function damerauLevenshtein(a, b, maxDistance = Infinity) {
+  if (a === b) return 0;
+  if (!a || !b) return Math.max(a.length, b.length);
+  if (Math.abs(a.length - b.length) > maxDistance) return maxDistance + 1;
+
+  let previousPrevious = new Array(b.length + 1).fill(0);
+  let previous = Array.from({ length: b.length + 1 }, (_, i) => i);
+
+  for (let i = 1; i <= a.length; i += 1) {
+    const current = new Array(b.length + 1);
+    current[0] = i;
+    let rowMin = current[0];
+
+    for (let j = 1; j <= b.length; j += 1) {
+      const substitution = previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1);
+      const insertion = current[j - 1] + 1;
+      const deletion = previous[j] + 1;
+
+      let value = Math.min(substitution, insertion, deletion);
+
+      if (
+        i > 1 &&
+        j > 1 &&
+        a[i - 1] === b[j - 2] &&
+        a[i - 2] === b[j - 1]
+      ) {
+        value = Math.min(value, previousPrevious[j - 2] + 1);
+      }
+
+      current[j] = value;
+      rowMin = Math.min(rowMin, value);
+    }
+
+    if (rowMin > maxDistance) return maxDistance + 1;
+    previousPrevious = previous;
+    previous = current;
+  }
+
+  return previous[b.length];
+}
+
+function tokenSimilarity(a, b) {
+  if (a === b) return 1;
+  const maxLength = Math.max(a.length, b.length);
+  if (maxLength <= 2) return 0;
+
+  const maxDistance = maxLength <= 5 ? 1 : maxLength <= 8 ? 2 : 3;
+  const distance = damerauLevenshtein(a, b, maxDistance);
+  if (distance > maxDistance) return 0;
+
+  return 1 - distance / maxLength;
+}
+
+function fuzzyTokenMatch(queryToken, candidateToken) {
+  if (queryToken === candidateToken) return 1;
+  if (queryToken.length < 3 || candidateToken.length < 3) return 0;
+
+  const similarity = tokenSimilarity(queryToken, candidateToken);
+  if (similarity < 0.72) return 0;
+
+  return similarity;
+}
+
+function fuzzySequenceScore(queryTokens, candidateTokens) {
+  if (!queryTokens.length || !candidateTokens.length) return 0;
+
+  let best = 0;
+  const maxStart = candidateTokens.length;
+
+  for (let start = 0; start < maxStart; start += 1) {
+    const lengthWindow = Math.min(
+      queryTokens.length + 4,
+      candidateTokens.length - start,
+    );
+
+    if (lengthWindow <= 0) continue;
+
+    let matched = 0;
+    let totalCost = 0;
+    let lastCandidateIndex = start - 1;
+
+    for (let offset = 0; offset < lengthWindow && offset < queryTokens.length; offset += 1) {
+      const queryToken = queryTokens[offset];
+      let localBest = 0;
+      let localIndex = -1;
+
+      // Разрешаем одно пропущенное слово в кандидате или запросе.
+      for (let jump = 0; jump <= 2 && start + offset + jump < candidateTokens.length; jump += 1) {
+        const candidateIndex = start + offset + jump;
+        const similarity = fuzzyTokenMatch(queryToken, candidateTokens[candidateIndex]);
+        if (similarity > localBest) {
+          localBest = similarity;
+          localIndex = candidateIndex;
+        }
+      }
+
+      if (localBest > 0) {
+        matched += localBest;
+        totalCost += 1 - localBest;
+        lastCandidateIndex = localIndex;
+      }
+    }
+
+    const coverage = matched / queryTokens.length;
+    const density = lastCandidateIndex >= start
+      ? matched / (lastCandidateIndex - start + 1)
+      : 0;
+
+    const score = coverage * 0.65 + density * 0.35 - totalCost / Math.max(queryTokens.length, 1) * 0.15;
+    best = Math.max(best, score);
+  }
+
+  return Math.max(0, Math.min(1, best));
+}
+
+function longestFuzzyRun(queryTokens, candidateTokens) {
+  let best = 0;
+
+  for (let i = 0; i < queryTokens.length; i += 1) {
+    let run = 0;
+    let candidateCursor = 0;
+    let skips = 0;
+
+    for (let j = i; j < queryTokens.length; j += 1) {
+      let found = false;
+
+      for (let k = candidateCursor; k < Math.min(candidateTokens.length, candidateCursor + 4); k += 1) {
+        const similarity = fuzzyTokenMatch(queryTokens[j], candidateTokens[k]);
+        if (similarity >= 0.78) {
+          run += similarity;
+          candidateCursor = k + 1;
+          found = true;
+          break;
+        }
+      }
+
+      if (!found) {
+        skips += 1;
+        if (skips > 1) break;
+      }
+    }
+
+    best = Math.max(best, run);
+  }
+
+  return best;
 }
 
 function splitLyricsQuery(query) {
@@ -205,72 +388,30 @@ function splitLyricsQuery(query) {
   if (!allTokens.length) return [];
 
   const phrases = [];
+  const windowSizes = [18, 14, 10, 7];
 
-  // Для LRCLIB нужны не отдельные слова, а характерные куски текста.
-  // Окна перекрываются, чтобы куплет можно было найти даже при переносах строк.
-  const windowSizes = [14, 10, 7];
   for (const size of windowSizes) {
     if (allTokens.length < size) continue;
 
-    const step = size >= 10 ? 6 : 4;
+    const step = size >= 14 ? 6 : 4;
     for (let i = 0; i + size <= allTokens.length; i += step) {
       phrases.push(allTokens.slice(i, i + size).join(" "));
     }
   }
 
-  // Сохраняем отдельные строки как запасные поисковые фразы.
   for (const line of lines) {
     const tokens = lyricsTokens(line);
-    if (tokens.length >= 4) {
-      phrases.push(tokens.slice(0, 12).join(" "));
-    }
+    if (tokens.length >= 4) phrases.push(tokens.slice(0, 14).join(" "));
   }
 
-  // И несколько соседних строк — это особенно полезно для припевов/куплетов.
   for (let i = 0; i < lines.length - 1; i += 1) {
     const combined = lyricsTokens(lines[i] + " " + lines[i + 1]);
-    if (combined.length >= 6) {
-      phrases.push(combined.slice(0, 14).join(" "));
-    }
+    if (combined.length >= 6) phrases.push(combined.slice(0, 18).join(" "));
   }
 
   return [...new Set(phrases)]
     .filter((phrase) => phrase.split(" ").length >= 4)
-    .slice(0, 14);
-}
-
-function longestCommonRun(queryTokens, lyricsTokensValue) {
-  if (!queryTokens.length || !lyricsTokensValue.length) return 0;
-
-  const positions = new Map();
-
-  lyricsTokensValue.forEach((token, index) => {
-    const list = positions.get(token);
-    if (list) list.push(index);
-    else positions.set(token, [index]);
-  });
-
-  let best = 0;
-
-  for (let i = 0; i < queryTokens.length; i += 1) {
-    const matches = positions.get(queryTokens[i]) || [];
-
-    for (const start of matches) {
-      let length = 1;
-
-      while (
-        i + length < queryTokens.length &&
-        start + length < lyricsTokensValue.length &&
-        queryTokens[i + length] === lyricsTokensValue[start + length]
-      ) {
-        length += 1;
-      }
-
-      if (length > best) best = length;
-    }
-  }
-
-  return best;
+    .slice(0, 16);
 }
 
 function scorePhrase(query, lyricsText) {
@@ -283,24 +424,24 @@ function scorePhrase(query, lyricsText) {
   const normalizedCandidate = candidateTokens.join(" ");
 
   if (normalizedCandidate.includes(normalizedQuery)) {
-    return Math.min(100, 55 + queryTokens.length * 2);
+    return Math.min(100, 70 + queryTokens.length * 1.5);
   }
 
-  const longestRun = longestCommonRun(queryTokens, candidateTokens);
-  const runRatio = longestRun / queryTokens.length;
+  const sequenceScore = fuzzySequenceScore(queryTokens, candidateTokens);
+  const fuzzyRun = longestFuzzyRun(queryTokens, candidateTokens);
+  const meaningfulQuery = lyricsTokens(query, { meaningfulOnly: true });
+  const meaningfulCandidate = new Set(lyricsTokens(lyricsText, { meaningfulOnly: true }));
 
-  const candidateSet = new Set(candidateTokens);
-  const matchedWords = queryTokens.filter((word) => candidateSet.has(word)).length;
-  const wordRatio = matchedWords / queryTokens.length;
+  const meaningfulCoverage = meaningfulQuery.length
+    ? meaningfulQuery.filter((token) => [...meaningfulCandidate].some((candidate) => fuzzyTokenMatch(token, candidate) >= 0.8)).length / meaningfulQuery.length
+    : 0;
 
-  let score = wordRatio * 20;
-  score += Math.min(55, longestRun * 5);
-
-  if (runRatio >= 0.75) score += 25;
-  else if (runRatio >= 0.55) score += 15;
-  else if (runRatio >= 0.4) score += 7;
-
-  return Math.min(100, score);
+  return Math.min(
+    100,
+    sequenceScore * 60 +
+      Math.min(1, fuzzyRun / Math.max(queryTokens.length, 1)) * 25 +
+      meaningfulCoverage * 15,
+  );
 }
 
 function scoreLyricsMatch(item, query) {
@@ -311,44 +452,40 @@ function scoreLyricsMatch(item, query) {
 
   if (!candidateLyrics) return 0;
 
-  const queryLines = String(query || "")
-    .replace(/\r/g, "")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-
-  const queryText = queryLines.join(" ");
-  const queryTokens = lyricsTokens(queryText);
+  const queryTokens = lyricsTokens(query);
   if (queryTokens.length < 4) return 0;
 
-  const candidateText = normalizeLyricsText(candidateLyrics);
-  const candidateTokens = lyricsTokens(candidateLyrics);
-
-  const fullScore = scorePhrase(queryText, candidateLyrics);
-
+  const fullScore = scorePhrase(query, candidateLyrics);
   const phraseScores = splitLyricsQuery(query)
     .map((phrase) => scorePhrase(phrase, candidateLyrics))
     .sort((a, b) => b - a);
 
-  const topPhraseScores = phraseScores.slice(0, 4);
+  const topPhraseScores = phraseScores.slice(0, 5);
   const phraseAverage = topPhraseScores.length
     ? topPhraseScores.reduce((sum, value) => sum + value, 0) / topPhraseScores.length
     : 0;
 
-  const longestRun = longestCommonRun(queryTokens, candidateTokens);
-  const candidateSet = new Set(candidateTokens);
-  const coverage = queryTokens.filter((word) => candidateSet.has(word)).length / queryTokens.length;
+  const candidateTokens = lyricsTokens(candidateLyrics);
+  const meaningfulQuery = lyricsTokens(query, { meaningfulOnly: true });
+  const meaningfulCandidate = new Set(lyricsTokens(candidateLyrics, { meaningfulOnly: true }));
+
+  const coverage = meaningfulQuery.length
+    ? meaningfulQuery.filter((token) => [...meaningfulCandidate].some((candidate) => fuzzyTokenMatch(token, candidate) >= 0.8)).length / meaningfulQuery.length
+    : 0;
 
   let score = fullScore * 0.55 + phraseAverage * 0.45;
 
-  if (longestRun >= 14) score += 35;
-  else if (longestRun >= 10) score += 25;
-  else if (longestRun >= 7) score += 15;
-  else if (longestRun >= 5) score += 7;
+  if (coverage >= 0.9) score += 25;
+  else if (coverage >= 0.75) score += 15;
+  else if (coverage >= 0.6) score += 7;
 
-  if (coverage >= 0.9) score += 20;
-  else if (coverage >= 0.75) score += 12;
-  else if (coverage >= 0.6) score += 6;
+  const fuzzyRun = longestFuzzyRun(queryTokens, candidateTokens);
+  const runRatio = fuzzyRun / queryTokens.length;
+
+  if (runRatio >= 0.85) score += 35;
+  else if (runRatio >= 0.7) score += 25;
+  else if (runRatio >= 0.55) score += 15;
+  else if (runRatio >= 0.4) score += 7;
 
   return Math.min(200, score);
 }
