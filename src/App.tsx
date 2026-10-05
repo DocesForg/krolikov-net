@@ -1,0 +1,135 @@
+import { useRef, useState } from "react";
+import type { ChangeEvent, DragEvent } from "react";
+import { musicServices } from "./services/music";
+import { useAppDispatch, useAppSelector } from "./store/hooks";
+import { setError, setLyrics, setSimilar, setTrack, startLoading } from "./store/musicSlice";
+import type { Track } from "./types/music";
+
+export default function App() {
+  const dispatch = useAppDispatch();
+  const { track, lyrics, similar, loading, error } = useAppSelector((s) => s.music);
+  const [query, setQuery] = useState("");
+  const [recording, setRecording] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const recorder = useRef<MediaRecorder | null>(null);
+  const chunks = useRef<Blob[]>([]);
+
+  const recognize = async (file: File) => {
+    dispatch(startLoading());
+    try {
+      const result = await musicServices.recognize(file);
+      dispatch(setTrack(result.track));
+      if (!result.track) dispatch(setError("Трек не найден. Попробуйте другой фрагмент."));
+    } catch (e) { dispatch(setError(e instanceof Error ? e.message : "Ошибка распознавания")); }
+  };
+
+  const onFile = (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith("audio/")) return dispatch(setError("Выберите аудиофайл."));
+    void recognize(file);
+  };
+
+  const searchLyrics = async () => {
+    if (!query.trim()) return;
+    dispatch(startLoading());
+    try { dispatch(setLyrics(await musicServices.searchLyrics(query))); }
+    catch (e) { dispatch(setError(e instanceof Error ? e.message : "Ошибка поиска текста")); }
+  };
+
+  const findSimilar = async (source: Track) => {
+    dispatch(startLoading());
+    try { dispatch(setSimilar(await musicServices.similarTracks(source))); }
+    catch (e) { dispatch(setError(e instanceof Error ? e.message : "Ошибка поиска похожих треков")); }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      chunks.current = []; recorder.current = mediaRecorder;
+      mediaRecorder.ondataavailable = (e) => e.data.size && chunks.current.push(e.data);
+      mediaRecorder.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunks.current, { type: mediaRecorder.mimeType || "audio/webm" });
+        void recognize(new File([blob], "microphone.webm", { type: blob.type }));
+        setRecording(false);
+      };
+      mediaRecorder.start(); setRecording(true);
+      window.setTimeout(() => mediaRecorder.state === "recording" && mediaRecorder.stop(), 12000);
+    } catch { dispatch(setError("Не удалось получить доступ к микрофону.")); }
+  };
+
+  const stopRecording = () => { if (recorder.current?.state === "recording") recorder.current.stop(); };
+  const onDrop = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); setDragging(false); onFile(e.dataTransfer.files[0]); };
+  const onInput = (e: ChangeEvent<HTMLInputElement>) => onFile(e.target.files?.[0]);
+
+  return <main className="app-shell">
+    <header className="topbar">
+      <div className="brand"><span className="brand-mark">K</span><span>{import.meta.env.VITE_APP_NAME || "Krolikov"}</span></div>
+      <span className="status">MUSIC SEARCH</span>
+    </header>
+
+    <section className="hero">
+      <p className="eyebrow">AUDIO · LYRICS · DISCOVERY</p>
+      <h1>Найди музыку<br /><span>по любому следу.</span></h1>
+      <p className="subtitle">Загрузи фрагмент, запиши его с микрофона или найди песню по тексту.</p>
+
+      <div className={`dropzone ${dragging ? "is-dragging" : ""}`}
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)} onDrop={onDrop}>
+        <input id="file-input" type="file" accept="audio/*" hidden onChange={onInput} />
+        <label htmlFor="file-input" className="dropzone-content">
+          <span className="upload-icon">↑</span>
+          <strong>Перетащи аудиофайл сюда</strong><span>или нажми, чтобы выбрать файл</span>
+        </label>
+        <button className={`record ${recording ? "recording" : ""}`} onClick={recording ? stopRecording : startRecording}>
+          <span className="record-dot" /> {recording ? "Остановить запись" : "Записать с микрофона"}
+        </button>
+      </div>
+
+      <div className="divider"><span>или поиск по тексту</span></div>
+      <form className="search" onSubmit={(e) => { e.preventDefault(); void searchLyrics(); }}>
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Название, исполнитель или строка из песни..." />
+        <button type="submit">Найти</button>
+      </form>
+    </section>
+
+    {error && <section className="message error">{error}</section>}
+    {loading && <section className="message">Ищем музыку…</section>}
+
+    {track && <section className="results">
+      <div className="result-card">
+        {track.artworkUrl ? <img src={track.artworkUrl} alt="" className="cover" /> : <div className="cover placeholder">♪</div>}
+        <div className="track-info">
+          <span className="eyebrow">FOUND · {track.source}</span>
+          <h2>{track.title}</h2><p>{track.artist}</p>
+          {track.album && <small>{track.album}</small>}
+          {track.timecode && <small>Фрагмент: {track.timecode}</small>}
+          <div className="actions">
+            <button onClick={() => void findSimilar(track)}>Похожие треки</button>
+            {track.songUrl && <a href={track.songUrl} target="_blank" rel="noreferrer">Открыть трек ↗</a>}
+          </div>
+        </div>
+      </div>
+    </section>}
+
+    {lyrics.length > 0 && <section className="results">
+      <div className="section-heading"><span>LYRICS</span><h2>Результаты по тексту</h2></div>
+      <div className="lyrics-grid">{lyrics.slice(0, 8).map((item, i) =>
+        <article className="lyrics-card" key={`${item.artist}-${item.track}-${i}`}>
+          <h3>{item.track}</h3><p>{item.artist}</p>
+          {item.plainLyrics && <div className="lyrics-preview">{item.plainLyrics.slice(0, 240)}…</div>}
+        </article>)}</div>
+    </section>}
+
+    {similar.length > 0 && <section className="results">
+      <div className="section-heading"><span>DISCOVERY</span><h2>Похожие треки</h2></div>
+      <div className="similar-grid">{similar.map((item, i) =>
+        <article className="similar-card" key={`${item.artist}-${item.title}-${i}`}>
+          <span>{String(i + 1).padStart(2, "0")}</span><div><strong>{item.title}</strong><p>{item.artist}</p></div>
+        </article>)}</div>
+    </section>}
+
+    <footer>Локальный frontend · Vite + React · nginx</footer>
+  </main>;
+}
