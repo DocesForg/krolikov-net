@@ -18,10 +18,19 @@ export interface Lyrics {
   source: string;
 }
 
+export interface AiTrackInsight {
+  summary: string;
+  genres: string[];
+  mood: string[];
+  similarArtists: string[];
+  recommendations: string[];
+}
+
 export interface MusicRecognition { track: Track | null; }
 
 export interface MusicServices {
   recognize(file: File): Promise<MusicRecognition>;
   searchLyrics(query: string): Promise<Lyrics[]>;
   similarTracks(track: Track): Promise<Track[]>;
+  analyzeTrack(track: Track): Promise<AiTrackInsight>;
 }
