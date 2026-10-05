@@ -18,12 +18,19 @@ export interface Lyrics {
   source: string;
 }
 
+export interface AiSimilarTrack {
+  artist: string;
+  title: string;
+  reason: string;
+}
+
 export interface AiTrackInsight {
   summary: string;
   genres: string[];
   mood: string[];
   similarArtists: string[];
   recommendations: string[];
+  similarTracks: AiSimilarTrack[];
 }
 
 export interface MusicRecognition { track: Track | null; }
