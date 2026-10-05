@@ -26,14 +26,19 @@ export class GeminiMusicService {
       mood: Array.isArray(data.mood) ? data.mood.slice(0, 5).map(String) : [],
       similarArtists: Array.isArray(data.similarArtists) ? data.similarArtists.slice(0, 5).map(String) : [],
       recommendations: Array.isArray(data.recommendations) ? data.recommendations.slice(0, 5).map(String) : [],
+      similarTracks: Array.isArray(data.similarTracks) ? data.similarTracks.slice(0, 8).map((item) => ({
+        artist: String(item?.artist || ""),
+        title: String(item?.title || ""),
+        reason: String(item?.reason || ""),
+      })).filter((item) => item.artist && item.title) : [],
     };
   }
 
   async findSimilarTracks(track: Track): Promise<Track[]> {
     const insight = await this.analyzeTrack(track);
-    return insight.recommendations.map((recommendation) => ({
-      artist: "",
-      title: recommendation,
+    return insight.similarTracks.map((item) => ({
+      artist: item.artist,
+      title: item.title,
       source: "Gemini recommendation",
     }));
   }
