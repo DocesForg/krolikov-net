@@ -178,79 +178,179 @@ async function searchLrcLib(query) {
   throw error;
 }
 
-function splitLyricsQuery(query) {
-  const normalized = query
-    .replace(/\\r/g, "")
-    .split("\n")
-    .map((line) => line.replace(/\\s+/g, " ").trim())
-    .filter(Boolean);
-
-  const lines = [...new Set(normalized.filter((line) => line.length >= 4))];
-
-  // LRCLIB лучше работает с ключевыми фразами, чем с огромным куском текста.
-  // Берём не только отдельные строки, но и соседние фразы по 5–10 слов.
-  const phrases = [];
-  for (const line of lines) {
-    const words = line.split(" ").filter(Boolean);
-
-    if (words.length <= 10) {
-      phrases.push(line);
-      continue;
-    }
-
-    for (let i = 0; i < words.length; i += 6) {
-      const phrase = words.slice(i, i + 10).join(" ");
-      if (phrase.length >= 12) phrases.push(phrase);
-    }
-  }
-
-  for (let i = 0; i < lines.length - 1; i += 1) {
-    const combined = `${lines[i]} ${lines[i + 1]}`;
-    const words = combined.split(" ").filter(Boolean);
-    if (words.length >= 5) {
-      phrases.push(words.slice(0, 10).join(" "));
-    }
-  }
-
-  return [...new Set(phrases)].slice(0, 12);
-}
-
 function normalizeLyricsText(value) {
   return String(value || "")
     .toLowerCase()
-    .replace(/\\[[^\\]]*\\]/g, " ")
-    .replace(/[^\\p{L}\\p{N}]+/gu, " ")
-    .replace(/\\s+/g, " ")
+    .replace(/\[[^\]]*\]/g, " ")
+    .replace(/[’']/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
-function scoreLyricsMatch(item, queries) {
-  const haystack = normalizeLyricsText(
-    `${item?.plainLyrics || ""} ${item?.syncedLyrics || ""}`,
-  );
+function lyricsTokens(value) {
+  return normalizeLyricsText(value).split(" ").filter(Boolean);
+}
 
-  if (!haystack) return 0;
+function splitLyricsQuery(query) {
+  const rawLines = String(query || "")
+    .replace(/\r/g, "")
+    .split("\n")
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter((line) => line.length >= 3);
 
-  let score = 0;
-  for (const query of queries) {
-    const normalized = normalizeLyricsText(query);
-    if (!normalized) continue;
+  const lines = [...new Set(rawLines)];
+  const allTokens = lyricsTokens(lines.join(" "));
 
-    if (haystack.includes(normalized)) {
-      score += normalized.split(" ").length >= 6 ? 4 : 2;
-      continue;
+  if (!allTokens.length) return [];
+
+  const phrases = [];
+
+  // Для LRCLIB нужны не отдельные слова, а характерные куски текста.
+  // Окна перекрываются, чтобы куплет можно было найти даже при переносах строк.
+  const windowSizes = [14, 10, 7];
+  for (const size of windowSizes) {
+    if (allTokens.length < size) continue;
+
+    const step = size >= 10 ? 6 : 4;
+    for (let i = 0; i + size <= allTokens.length; i += step) {
+      phrases.push(allTokens.slice(i, i + size).join(" "));
     }
-
-    const words = normalized.split(" ").filter((word) => word.length >= 3);
-    if (words.length < 3) continue;
-
-    const matched = words.filter((word) => haystack.includes(word)).length;
-    const ratio = matched / words.length;
-    if (ratio >= 0.7) score += 2;
-    else if (ratio >= 0.45) score += 1;
   }
 
-  return score;
+  // Сохраняем отдельные строки как запасные поисковые фразы.
+  for (const line of lines) {
+    const tokens = lyricsTokens(line);
+    if (tokens.length >= 4) {
+      phrases.push(tokens.slice(0, 12).join(" "));
+    }
+  }
+
+  // И несколько соседних строк — это особенно полезно для припевов/куплетов.
+  for (let i = 0; i < lines.length - 1; i += 1) {
+    const combined = lyricsTokens(lines[i] + " " + lines[i + 1]);
+    if (combined.length >= 6) {
+      phrases.push(combined.slice(0, 14).join(" "));
+    }
+  }
+
+  return [...new Set(phrases)]
+    .filter((phrase) => phrase.split(" ").length >= 4)
+    .slice(0, 14);
+}
+
+function longestCommonRun(queryTokens, lyricsTokensValue) {
+  if (!queryTokens.length || !lyricsTokensValue.length) return 0;
+
+  const positions = new Map();
+
+  lyricsTokensValue.forEach((token, index) => {
+    const list = positions.get(token);
+    if (list) list.push(index);
+    else positions.set(token, [index]);
+  });
+
+  let best = 0;
+
+  for (let i = 0; i < queryTokens.length; i += 1) {
+    const matches = positions.get(queryTokens[i]) || [];
+
+    for (const start of matches) {
+      let length = 1;
+
+      while (
+        i + length < queryTokens.length &&
+        start + length < lyricsTokensValue.length &&
+        queryTokens[i + length] === lyricsTokensValue[start + length]
+      ) {
+        length += 1;
+      }
+
+      if (length > best) best = length;
+    }
+  }
+
+  return best;
+}
+
+function scorePhrase(query, lyricsText) {
+  const queryTokens = lyricsTokens(query);
+  const candidateTokens = lyricsTokens(lyricsText);
+
+  if (queryTokens.length < 4 || candidateTokens.length < 4) return 0;
+
+  const normalizedQuery = queryTokens.join(" ");
+  const normalizedCandidate = candidateTokens.join(" ");
+
+  if (normalizedCandidate.includes(normalizedQuery)) {
+    return Math.min(100, 55 + queryTokens.length * 2);
+  }
+
+  const longestRun = longestCommonRun(queryTokens, candidateTokens);
+  const runRatio = longestRun / queryTokens.length;
+
+  const candidateSet = new Set(candidateTokens);
+  const matchedWords = queryTokens.filter((word) => candidateSet.has(word)).length;
+  const wordRatio = matchedWords / queryTokens.length;
+
+  let score = wordRatio * 20;
+  score += Math.min(55, longestRun * 5);
+
+  if (runRatio >= 0.75) score += 25;
+  else if (runRatio >= 0.55) score += 15;
+  else if (runRatio >= 0.4) score += 7;
+
+  return Math.min(100, score);
+}
+
+function scoreLyricsMatch(item, query) {
+  const candidateLyrics = [
+    item?.plainLyrics || "",
+    item?.syncedLyrics || "",
+  ].filter(Boolean).join("\n");
+
+  if (!candidateLyrics) return 0;
+
+  const queryLines = String(query || "")
+    .replace(/\r/g, "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const queryText = queryLines.join(" ");
+  const queryTokens = lyricsTokens(queryText);
+  if (queryTokens.length < 4) return 0;
+
+  const candidateText = normalizeLyricsText(candidateLyrics);
+  const candidateTokens = lyricsTokens(candidateLyrics);
+
+  const fullScore = scorePhrase(queryText, candidateLyrics);
+
+  const phraseScores = splitLyricsQuery(query)
+    .map((phrase) => scorePhrase(phrase, candidateLyrics))
+    .sort((a, b) => b - a);
+
+  const topPhraseScores = phraseScores.slice(0, 4);
+  const phraseAverage = topPhraseScores.length
+    ? topPhraseScores.reduce((sum, value) => sum + value, 0) / topPhraseScores.length
+    : 0;
+
+  const longestRun = longestCommonRun(queryTokens, candidateTokens);
+  const candidateSet = new Set(candidateTokens);
+  const coverage = queryTokens.filter((word) => candidateSet.has(word)).length / queryTokens.length;
+
+  let score = fullScore * 0.55 + phraseAverage * 0.45;
+
+  if (longestRun >= 14) score += 35;
+  else if (longestRun >= 10) score += 25;
+  else if (longestRun >= 7) score += 15;
+  else if (longestRun >= 5) score += 7;
+
+  if (coverage >= 0.9) score += 20;
+  else if (coverage >= 0.75) score += 12;
+  else if (coverage >= 0.6) score += 6;
+
+  return Math.min(200, score);
 }
 
 app.get("/api/lyrics/search", async (req, res) => {
@@ -302,7 +402,7 @@ app.get("/api/lyrics/search", async (req, res) => {
     const ranked = [...matches.values()]
       .map((item) => ({
         ...item,
-        textScore: scoreLyricsMatch(item, queries),
+        textScore: scoreLyricsMatch(item, query),
       }))
       .sort((a, b) => {
         if (b.textScore !== a.textScore) return b.textScore - a.textScore;
