@@ -24,7 +24,7 @@ export default function App() {
         : await musicServices.recognize(file);
       dispatch(setTrack(result.track));
       setAiInsight(null);
-      if (!result.track) dispatch(setError("Трек не найден. Попробуйте другой фрагмент."));
+      if (!result.track) dispatch(setError("Трек не найден. AcoustID и Gemini не смогли уверенно определить эту запись."));
     } catch (e) { dispatch(setError(e instanceof Error ? e.message : "Ошибка распознавания")); }
   };
 
@@ -35,10 +35,13 @@ export default function App() {
   };
 
   const searchLyrics = async () => {
-    if (!query.trim()) return;
+    if (!query.trim() || loading) return;
     dispatch(startLoading());
-    try { dispatch(setLyrics(await musicServices.searchLyrics(query))); }
-    catch (e) { dispatch(setError(e instanceof Error ? e.message : "Ошибка поиска текста")); }
+    try {
+      const results = await musicServices.searchLyrics(query);
+      dispatch(setLyrics(results));
+      if (results.length === 0) dispatch(setError("По вашему запросу ничего не найдено в LRCLIB."));
+    } catch (e) { dispatch(setError(e instanceof Error ? e.message : "Ошибка поиска текста")); }
   };
 
   const analyzeWithAi = async (source: Track) => {
@@ -106,7 +109,7 @@ export default function App() {
       <div className="divider"><span>или поиск по тексту</span></div>
       <form className="search" onSubmit={(e) => { e.preventDefault(); void searchLyrics(); }}>
         <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Название, исполнитель или строка из песни..." />
-        <button type="submit">Найти</button>
+        <button type="submit" disabled={loading}>{loading ? "Ищем…" : "Найти"}</button>
       </form>
     </section>
 
