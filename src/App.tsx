@@ -199,14 +199,14 @@ export default function App() {
             <h3>{item.track}</h3><p>{item.artist}</p>
             {item.album && <small>{item.album}</small>}
             {text && <div className="lyrics-preview">{isExpanded ? text : preview}</div>}
-            {text.length > 240 && <div className="lyrics-actions">
-              <button className="lyrics-toggle" onClick={() => setExpandedLyrics(isExpanded ? null : key)}>
+            <div className="lyrics-actions">
+              {text.length > 240 && <button className="lyrics-toggle" onClick={() => setExpandedLyrics(isExpanded ? null : key)}>
                 {isExpanded ? "Свернуть текст ↑" : "Показать весь текст ↓"}
-              </button>
+              </button>}
               <button className="lyrics-toggle" onClick={() => void findSimilarLyrics(item)} disabled={similarLyricsLoading}>
                 {similarLyricsLoading ? "Ищем похожие…" : "Показать похожие"}
               </button>
-            </div>}
+            </div>
           </div>
         </article>;
       })}</div>
