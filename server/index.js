@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import acoustid from "acoustid";
 import { analyzeTrack, recognizeAudio } from "./gemini.js";
-import { generativeSearch, identifyTrackFromLyrics } from "./yandex.js";
+import { findSimilarTracksFromAgent, generativeSearch, identifyTrackFromLyrics } from "./yandex.js";
 
 const app = express();
 const upload = multer({
@@ -666,6 +666,42 @@ app.get("/api/lyrics/search", async (req, res) => {
       error: error instanceof Error
         ? error.message
         : "Поиск текста временно недоступен. Попробуйте ещё раз.",
+    });
+  }
+});
+
+app.post("/api/lyrics/similar", async (req, res) => {
+  const artist = String(req.body?.artist || "").trim();
+  const title = String(req.body?.title || "").trim();
+  if (!title) return res.status(400).json({ error: "Название трека не передано" });
+
+  try {
+    const recommendations = await findSimilarTracksFromAgent(artist, title);
+    const results = [];
+
+    for (const recommendation of recommendations) {
+      let item = await getLrcLibTrack(recommendation.artist, recommendation.title);
+
+      if (!item) {
+        const fallback = await searchLrcLib(`${recommendation.artist} ${recommendation.title}`);
+        item = fallback.find((candidate) =>
+          String(candidate?.artistName || "").toLowerCase() === recommendation.artist.toLowerCase()
+          && String(candidate?.trackName || "").toLowerCase() === recommendation.title.toLowerCase()
+        ) || fallback[0] || null;
+      }
+
+      if (item) {
+        results.push(item);
+      }
+    }
+
+    return res.json({
+      recommendations,
+      results: await enrichLyricsResults(results),
+    });
+  } catch (error) {
+    return res.status(502).json({
+      error: error instanceof Error ? error.message : "Не удалось найти похожие треки",
     });
   }
 });
