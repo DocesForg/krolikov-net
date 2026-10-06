@@ -294,124 +294,225 @@ function fuzzySequenceScore(queryTokens, candidateTokens) {
   if (!queryTokens.length || !candidateTokens.length) return 0;
 
   let best = 0;
-  const maxStart = candidateTokens.length;
 
-  for (let start = 0; start < maxStart; start += 1) {
-    const lengthWindow = Math.min(
-      queryTokens.length + 4,
-      candidateTokens.length - start,
-    );
-
-    if (lengthWindow <= 0) continue;
-
+  // Сравниваем последовательность целиком. Пропущенные слова допускаются,
+  // но каждое пропускание заметно снижает итоговый результат.
+  for (let start = 0; start < candidateTokens.length; start += 1) {
+    let queryIndex = 0;
+    let candidateIndex = start;
     let matched = 0;
-    let totalCost = 0;
-    let lastCandidateIndex = start - 1;
+    let skips = 0;
+    let gaps = 0;
 
-    for (let offset = 0; offset < lengthWindow && offset < queryTokens.length; offset += 1) {
-      const queryToken = queryTokens[offset];
-      let localBest = 0;
-      let localIndex = -1;
+    while (queryIndex < queryTokens.length && candidateIndex < candidateTokens.length) {
+      const similarity = fuzzyTokenMatch(queryTokens[queryIndex], candidateTokens[candidateIndex]);
 
-      // Разрешаем одно пропущенное слово в кандидате или запросе.
-      for (let jump = 0; jump <= 2 && start + offset + jump < candidateTokens.length; jump += 1) {
-        const candidateIndex = start + offset + jump;
-        const similarity = fuzzyTokenMatch(queryToken, candidateTokens[candidateIndex]);
-        if (similarity > localBest) {
-          localBest = similarity;
-          localIndex = candidateIndex;
+      if (similarity >= 0.78) {
+        matched += similarity;
+        queryIndex += 1;
+        candidateIndex += 1;
+        continue;
+      }
+
+      let foundAhead = false;
+
+      // Допускаем максимум два пропущенных слова, но не разрешаем
+      // бесконтрольно перескакивать по тексту.
+      for (let jump = 1; jump <= 2; jump += 1) {
+        const next = candidateIndex + jump;
+        if (next >= candidateTokens.length) break;
+
+        const nextSimilarity = fuzzyTokenMatch(queryTokens[queryIndex], candidateTokens[next]);
+        if (nextSimilarity >= 0.82) {
+          gaps += jump;
+          matched += nextSimilarity;
+          candidateIndex = next + 1;
+          queryIndex += 1;
+          foundAhead = true;
+          break;
         }
       }
 
-      if (localBest > 0) {
-        matched += localBest;
-        totalCost += 1 - localBest;
-        lastCandidateIndex = localIndex;
-      }
+      if (foundAhead) continue;
+
+      skips += 1;
+      queryIndex += 1;
+
+      if (skips > Math.max(1, Math.floor(queryTokens.length * 0.15))) break;
+      candidateIndex += 1;
     }
 
     const coverage = matched / queryTokens.length;
-    const density = lastCandidateIndex >= start
-      ? matched / (lastCandidateIndex - start + 1)
-      : 0;
+    const consumed = Math.max(1, candidateIndex - start);
+    const density = matched / consumed;
+    const gapPenalty = gaps / Math.max(queryTokens.length, 1);
 
-    const score = coverage * 0.65 + density * 0.35 - totalCost / Math.max(queryTokens.length, 1) * 0.15;
+    const score = coverage * 0.55 + density * 0.45 - gapPenalty * 0.2;
     best = Math.max(best, score);
   }
 
   return Math.max(0, Math.min(1, best));
 }
 
-function longestFuzzyRun(queryTokens, candidateTokens) {
+function normalizeLyricsLines(value) {
+  return String(value || "")
+    .replace(/\r/g, "")
+    .split("\n")
+    .map((line) => normalizeLyricsText(line))
+    .filter((line) => line.length >= 2);
+}
+
+function bestLineMatch(queryLine, candidateLines) {
+  const queryTokens = lyricsTokens(queryLine);
+  if (queryTokens.length < 3) return 0;
+
   let best = 0;
 
-  for (let i = 0; i < queryTokens.length; i += 1) {
-    let run = 0;
-    let candidateCursor = 0;
-    let skips = 0;
+  for (const candidateLine of candidateLines) {
+    const candidateTokens = lyricsTokens(candidateLine);
+    if (candidateTokens.length < 3) continue;
 
-    for (let j = i; j < queryTokens.length; j += 1) {
-      let found = false;
+    const exact = candidateTokens.join(" ").includes(queryTokens.join(" "));
+    if (exact) return 1;
 
-      for (let k = candidateCursor; k < Math.min(candidateTokens.length, candidateCursor + 4); k += 1) {
-        const similarity = fuzzyTokenMatch(queryTokens[j], candidateTokens[k]);
-        if (similarity >= 0.78) {
-          run += similarity;
-          candidateCursor = k + 1;
-          found = true;
-          break;
-        }
-      }
+    const fuzzy = fuzzySequenceScore(queryTokens, candidateTokens);
 
-      if (!found) {
-        skips += 1;
-        if (skips > 1) break;
-      }
-    }
+    // Не позволяем короткой строке получать высокий балл только потому,
+    // что в ней встретились отдельные похожие слова.
+    const lengthRatio = Math.min(queryTokens.length, candidateTokens.length) /
+      Math.max(queryTokens.length, candidateTokens.length);
 
-    best = Math.max(best, run);
+    const score = fuzzy * 0.8 + lengthRatio * 0.2;
+    best = Math.max(best, score);
   }
 
   return best;
 }
 
+function scorePhrase(query, lyricsText) {
+  const queryLines = normalizeLyricsLines(query);
+  const candidateLines = normalizeLyricsLines(lyricsText);
+
+  if (!queryLines.length || !candidateLines.length) return 0;
+
+  // Главный критерий: совпадают ли целые строки.
+  const lineScores = queryLines.map((line) => bestLineMatch(line, candidateLines));
+  const sortedLines = [...lineScores].sort((a, b) => b - a);
+
+  const strongLines = lineScores.filter((score) => score >= 0.72).length;
+  const lineCoverage = lineScores.reduce((sum, value) => sum + value, 0) / lineScores.length;
+
+  // Проверяем порядок строк. Если несколько соседних строк из запроса
+  // находятся рядом в тексте кандидата, это гораздо сильнее случайных совпадений.
+  let orderedRuns = 0;
+  let bestOrderedRun = 0;
+  let currentRun = 0;
+  let previousCandidateIndex = -2;
+
+  for (const queryLine of queryLines) {
+    let bestIndex = -1;
+    let bestScore = 0;
+
+    for (let index = 0; index < candidateLines.length; index += 1) {
+      const score = bestLineMatch(queryLine, [candidateLines[index]]);
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = index;
+      }
+    }
+
+    if (bestScore >= 0.72 && bestIndex === previousCandidateIndex + 1) {
+      currentRun += bestScore;
+    } else if (bestScore >= 0.72) {
+      currentRun = bestScore;
+    } else {
+      currentRun = 0;
+    }
+
+    bestOrderedRun = Math.max(bestOrderedRun, currentRun);
+    previousCandidateIndex = bestIndex;
+  }
+
+  if (strongLines === 0) return 0;
+
+  let score = lineCoverage * 55;
+  score += (strongLines / queryLines.length) * 30;
+  score += Math.min(15, bestOrderedRun * 5);
+
+  // Один совпавший кусок не должен конкурировать с целым куплетом.
+  if (queryLines.length >= 3 && strongLines === 1) score *= 0.55;
+  if (queryLines.length >= 5 && strongLines < Math.ceil(queryLines.length * 0.4)) score *= 0.7;
+
+  return Math.min(100, score);
+}
+
+function scoreLyricsMatch(item, query) {
+  const candidateLyrics = [
+    item?.plainLyrics || "",
+    item?.syncedLyrics || "",
+  ].filter(Boolean).join("\n");
+
+  if (!candidateLyrics) return 0;
+
+  const queryLines = normalizeLyricsLines(query);
+  if (queryLines.length === 0) return 0;
+
+  const fullScore = scorePhrase(query, candidateLyrics);
+
+  // Дополнительная проверка длинного непрерывного фрагмента.
+  const queryTokens = lyricsTokens(query);
+  const candidateTokens = lyricsTokens(candidateLyrics);
+  const fuzzyRun = longestFuzzyRun(queryTokens, candidateTokens);
+  const runRatio = fuzzyRun / Math.max(queryTokens.length, 1);
+
+  let score = fullScore * 0.8;
+
+  // Непрерывность помогает только после того, как строки уже совпали.
+  if (runRatio >= 0.85) score += 20;
+  else if (runRatio >= 0.7) score += 12;
+  else if (runRatio >= 0.55) score += 6;
+
+  return Math.min(100, score);
+}
+
 function splitLyricsQuery(query) {
-  const rawLines = String(query || "")
+  const lines = String(query || "")
     .replace(/\r/g, "")
     .split("\n")
     .map((line) => line.replace(/\s+/g, " ").trim())
-    .filter((line) => line.length >= 3);
+    .filter((line) => lyricsTokens(line).length >= 3);
 
-  const lines = [...new Set(rawLines)];
-  const allTokens = lyricsTokens(lines.join(" "));
-
-  if (!allTokens.length) return [];
+  if (!lines.length) return [];
 
   const phrases = [];
-  const windowSizes = [18, 14, 10, 7];
 
-  for (const size of windowSizes) {
-    if (allTokens.length < size) continue;
-
-    const step = size >= 14 ? 6 : 4;
-    for (let i = 0; i + size <= allTokens.length; i += step) {
-      phrases.push(allTokens.slice(i, i + size).join(" "));
+  // Сначала ищем целые строки. Это важно: LRCLIB получает контекст,
+  // а не россыпь отдельных слов.
+  for (const line of lines) {
+    const tokens = lyricsTokens(line);
+    if (tokens.length >= 3) {
+      phrases.push(tokens.join(" "));
     }
   }
 
+  // Затем соседние строки. Они хорошо идентифицируют конкретный куплет.
+  for (let i = 0; i < lines.length - 1; i += 1) {
+    const tokens = lyricsTokens(lines[i] + " " + lines[i + 1]);
+    if (tokens.length >= 6) phrases.push(tokens.slice(0, 18).join(" "));
+  }
+
+  // Для очень длинных строк делаем умеренно короткие окна.
   for (const line of lines) {
     const tokens = lyricsTokens(line);
-    if (tokens.length >= 4) phrases.push(tokens.slice(0, 14).join(" "));
+    if (tokens.length > 12) {
+      for (let i = 0; i + 6 <= tokens.length; i += 5) {
+        phrases.push(tokens.slice(i, Math.min(tokens.length, i + 8)).join(" "));
+      }
+    }
   }
 
-  for (let i = 0; i < lines.length - 1; i += 1) {
-    const combined = lyricsTokens(lines[i] + " " + lines[i + 1]);
-    if (combined.length >= 6) phrases.push(combined.slice(0, 18).join(" "));
-  }
-
-  return [...new Set(phrases)]
-    .filter((phrase) => phrase.split(" ").length >= 4)
-    .slice(0, 16);
+  // Не больше нескольких наиболее характерных запросов.
+  return [...new Set(phrases)].slice(0, 16);
 }
 
 function scorePhrase(query, lyricsText) {
