@@ -5,7 +5,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import acoustid from "acoustid";
-import { analyzeTrack, recognizeAudio } from "./gemini.js";
+import { analyzeTrack, identifyLyrics, recognizeAudio } from "./gemini.js";
 
 const app = express();
 const upload = multer({
@@ -177,6 +177,25 @@ async function searchLrcLib(query) {
   error.code = lastStatus;
   throw error;
 }
+
+async function getLrcLibTrack(artist, title) {
+  const url = new URL("https://lrclib.net/api/get");
+  url.searchParams.set("artist_name", artist);
+  url.searchParams.set("track_name", title);
+
+  const response = await fetch(url, {
+    headers: {
+      "User-Agent": "Krolikov/0.2.0 (https://github.com/DocesForg/krolikov-net)",
+      Accept: "application/json",
+    },
+    signal: AbortSignal.timeout(7000),
+  });
+
+  if (!response.ok) return null;
+  const item = await response.json();
+  return item && typeof item === "object" ? item : null;
+}
+
 
 const LYRICS_STOP_WORDS = new Set([
   "a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "from",
@@ -560,197 +579,52 @@ app.get("/api/lyrics/search", async (req, res) => {
   const query = String(req.query.q || "").trim();
   if (!query) return res.status(400).json({ error: "Поисковый запрос пуст" });
 
-  const queries = splitLyricsQuery(query);
-
   try {
-    const matches = new Map();
+    const wordCount = lyricsTokens(query).length;
 
-    // Всегда сохраняем исходный запрос. Это критично для обычного поиска
-    // по названию/исполнителю, особенно для русских названий.
-    const searchQueries = [query, ...queries.filter((item) => item !== query)];
+    if (wordCount >= 20) {
+      const identified = await identifyLyrics(query);
 
-    for (let start = 0; start < searchQueries.length; start += 3) {
-      const batch = searchQueries.slice(start, start + 3);
+      if (identified.confidence >= 0.65 && identified.artist && identified.title) {
+        const exact = await getLrcLibTrack(identified.artist, identified.title);
 
-      const results = await Promise.all(batch.map(async (searchQuery) => {
-        try {
-          return await searchLrcLib(searchQuery);
-        } catch {
-          return [];
+        if (exact) {
+          return res.json(await enrichLyricsResults([{
+            ...exact,
+            trackName: exact.trackName || identified.title,
+            artistName: exact.artistName || identified.artist,
+            albumName: exact.albumName || exact.album || null,
+          }]));
         }
-      }));
 
-      for (let batchIndex = 0; batchIndex < results.length; batchIndex += 1) {
-        const items = results[batchIndex];
-        const searchQuery = batch[batchIndex];
-
-        for (const item of items) {
-          const artist = String(item?.artistName || "").trim();
-          const title = String(item?.trackName || "").trim();
-          const album = String(item?.albumName || "").trim();
-          const key = [
-            artist.toLowerCase(),
-            title.toLowerCase(),
-            album.toLowerCase(),
-          ].join("::");
-
-          if (!key || key === "::") continue;
-
-          const current = matches.get(key);
-          if (current) {
-            current.apiHits += 1;
-            if (searchQuery === query) current.directHit = true;
-          } else {
-            matches.set(key, {
-              ...item,
-              apiHits: 1,
-              directHit: searchQuery === query,
-            });
-          }
+        const fallback = await searchLrcLib(identified.artist + " " + identified.title);
+        if (fallback.length) {
+          return res.json(await enrichLyricsResults(fallback.slice(0, 20)));
         }
       }
-    }
 
-    const normalizedQuery = normalizeLyricsText(query);
-    const queryTokens = lyricsTokens(query, { meaningfulOnly: true });
-
-    const ranked = [...matches.values()]
-      .map((item) => {
-        const title = String(item?.trackName || "");
-        const artist = String(item?.artistName || "");
-        const album = String(item?.albumName || "");
-
-        const normalizedTitle = normalizeLyricsText(title);
-        const normalizedArtist = normalizeLyricsText(artist);
-        const normalizedAlbum = normalizeLyricsText(album);
-
-        let metadataScore = 0;
-
-        if (normalizedQuery === normalizedTitle) {
-          metadataScore = 100;
-        } else if (normalizedQuery === normalizedArtist) {
-          metadataScore = 96;
-        } else if (
-          normalizedTitle.includes(normalizedQuery) ||
-          normalizedQuery.includes(normalizedTitle)
-        ) {
-          metadataScore = 88;
-        } else if (
-          normalizedArtist.includes(normalizedQuery) ||
-          normalizedQuery.includes(normalizedArtist)
-        ) {
-          metadataScore = 84;
-        } else if (
-          normalizedAlbum &&
-          (normalizedAlbum.includes(normalizedQuery) ||
-            normalizedQuery.includes(normalizedAlbum))
-        ) {
-          metadataScore = 78;
-        } else if (queryTokens.length >= 2) {
-          const titleTokens = lyricsTokens(title, { meaningfulOnly: true });
-          const artistTokens = lyricsTokens(artist, { meaningfulOnly: true });
-          const allMetadataTokens = [...titleTokens, ...artistTokens];
-
-          const matchedTokens = queryTokens.filter((token) =>
-            allMetadataTokens.some((candidate) => tokenSimilarity(token, candidate) >= 0.82),
-          ).length;
-
-          metadataScore = (matchedTokens / queryTokens.length) * 70;
-        }
-
-        return {
-          ...item,
-          metadataScore,
-          textScore: scoreLyricsMatch(item, query),
-        };
-      })
-      .sort((a, b) => {
-        // Точное название/исполнитель всегда важнее случайного совпадения
-        // нескольких слов внутри текста песни.
-        if (b.metadataScore !== a.metadataScore) return b.metadataScore - a.metadataScore;
-        if (b.textScore !== a.textScore) return b.textScore - a.textScore;
-        if (b.apiHits !== a.apiHits) return b.apiHits - a.apiHits;
-        if (Number(b.directHit) !== Number(a.directHit)) {
-          return Number(b.directHit) - Number(a.directHit);
-        }
-        return String(a.trackName || "").localeCompare(String(b.trackName || ""));
-      })
-      .slice(0, 20)
-      .map(({ apiHits, directHit, metadataScore, textScore, ...item }) => item);
-
-    if (ranked.length === 0) {
       return res.json([]);
     }
+
+    const results = await searchLrcLib(query);
+    const ranked = results
+      .map((item) => ({
+        ...item,
+        textScore: scoreLyricsMatch(item, query),
+      }))
+      .sort((a, b) => {
+        if (b.textScore !== a.textScore) return b.textScore - a.textScore;
+        return String(a.trackName || "").localeCompare(String(b.trackName || ""));
+      })
+      .slice(0, 20);
 
     return res.json(await enrichLyricsResults(ranked));
   } catch (error) {
     res.status(502).json({
       error: error instanceof Error
         ? error.message
-        : "LRCLIB временно недоступен. Попробуйте ещё раз через несколько секунд.",
+        : "Поиск текста временно недоступен. Попробуйте ещё раз.",
     });
   }
 });
-
-app.post("/api/gemini/analyze", async (req, res) => {
-  try {
-    const result = await analyzeTrack(req.body?.track || {});
-    res.json(result);
-  } catch (error) {
-    res.status(502).json({
-      error: error instanceof Error ? error.message : "Gemini не смог проанализировать трек",
-    });
-  }
-});
-
-app.post("/api/recognize/file", upload.single("file"), async (req, res) => {
-  if (!acoustIdKey) return res.status(500).json({ error: "ACOUSTID_CLIENT_KEY не настроен" });
-  if (!req.file) return res.status(400).json({ error: "Аудиофайл не передан" });
-
-  try {
-    const results = await new Promise((resolve, reject) => {
-      acoustid(req.file.path, {
-        key: acoustIdKey,
-        meta: "recordings+releasegroups+compress",
-      }, (error, data) => error ? reject(error) : resolve(data));
-    });
-
-    const candidates = Array.isArray(results) ? results : [];
-    const best = candidates
-      .filter((item) => item?.recordings?.length)
-      .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))[0];
-
-    const recording = best?.recordings?.[0];
-    const track = mapRecording(recording);
-    if (track) track.artworkUrl = await findArtwork(track.artist, track.title);
-
-    res.json({
-      track,
-      score: best?.score ?? null,
-      candidates: candidates.length,
-    });
-  } catch (error) {
-    const raw = error && typeof error === "object" ? error : null;
-    const apiCode = raw?.error?.code;
-    const apiMessage = raw?.error?.message;
-
-    res.status(502).json({
-      error: apiCode === 4 || apiMessage === "invalid API key"
-        ? "AcoustID отклонил API-ключ. Нужен Application/Client API Key, а не User API Key."
-        : error instanceof Error ? error.message : "AcoustID не смог обработать файл",
-    });
-  } finally {
-    await fs.rm(req.file.path, { force: true }).catch(() => undefined);
-  }
-});
-
-const distPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
-app.use(express.static(distPath));
-app.use((req, res) => {
-  if (req.method === "GET") return res.sendFile(path.join(distPath, "index.html"));
-  res.status(404).json({ error: "Not found" });
-});
-
-app.listen(port, () => {
-  console.log(`Krolikov server listening on :${port}`);
-});
+;
