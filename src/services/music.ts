@@ -21,6 +21,35 @@ export const musicServices: MusicServices = {
   searchLyrics: (query) => lyrics.searchLyrics(query),
   searchSimilarLyrics: (artist, title) => lyrics.searchSimilarLyrics(artist, title),
   searchByGenre: (genre) => lyrics.searchByGenre(genre),
-  similarTracks: (track) => ai.findSimilarTracks(track),
+  similarTracks: async (track) => {
+    const response = await fetch("/api/lyrics/similar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ artist: track.artist, title: track.title }),
+    });
+
+    const data = await response.json() as {
+      error?: string;
+      results?: Array<{
+        track: string;
+        artist: string;
+        album?: string | null;
+        artworkUrl?: string | null;
+        source: string;
+      }>;
+    };
+
+    if (!response.ok) {
+      throw new Error(data.error || "Не удалось найти похожие треки");
+    }
+
+    return (data.results || []).map((item) => ({
+      artist: item.artist,
+      title: item.track,
+      album: item.album ?? null,
+      artworkUrl: item.artworkUrl ?? null,
+      source: item.source || "Yandex Agent + LRCLIB",
+    }));
+  },
   analyzeTrack: (track) => ai.analyzeTrack(track),
 };
