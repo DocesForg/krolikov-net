@@ -41,6 +41,10 @@ async function callAgent(input) {
           search_context_size: "low",
         },
       ],
+      // Для поиска текста песни Web Search обязателен.
+      tool_choice: {
+        type: "web_search",
+      },
     }),
     signal: AbortSignal.timeout(45000),
   });
@@ -68,7 +72,7 @@ function parseAgentOutput(data) {
     try {
       parsed = JSON.parse(outputText);
     } catch {
-      const jsonMatch = outputText.match(/\\{[\\s\\S]*\\}/);
+      const jsonMatch = outputText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         try {
           parsed = JSON.parse(jsonMatch[0]);
@@ -84,10 +88,18 @@ function parseAgentOutput(data) {
       for (const content of Array.isArray(item?.content) ? item.content : []) {
         if (typeof content?.text !== "string") continue;
         try {
-          parsed = JSON.parse(content.text);
+          parsed = JSON.parse(content.text.trim());
           break;
         } catch {
-          // Продолжаем искать JSON в других частях ответа.
+          const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            try {
+              parsed = JSON.parse(jsonMatch[0]);
+              break;
+            } catch {
+              // Продолжаем искать JSON в других частях ответа.
+            }
+          }
         }
       }
       if (parsed) break;
