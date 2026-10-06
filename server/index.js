@@ -354,6 +354,47 @@ function fuzzySequenceScore(queryTokens, candidateTokens) {
   return Math.max(0, Math.min(1, best));
 }
 
+function longestFuzzyRun(queryTokens, candidateTokens) {
+  if (!queryTokens.length || !candidateTokens.length) return 0;
+
+  let best = 0;
+
+  // Ищем самый длинный непрерывный фрагмент запроса в тексте кандидата.
+  // Разрешаем только небольшие опечатки, но не перестановку слов и не
+  // произвольные пропуски: это дополнительная проверка после совпадения строк.
+  for (let start = 0; start < queryTokens.length; start += 1) {
+    for (let candidateStart = 0; candidateStart < candidateTokens.length; candidateStart += 1) {
+      let queryIndex = start;
+      let candidateIndex = candidateStart;
+      let run = 0;
+
+      while (
+        queryIndex < queryTokens.length &&
+        candidateIndex < candidateTokens.length
+      ) {
+        const similarity = fuzzyTokenMatch(
+          queryTokens[queryIndex],
+          candidateTokens[candidateIndex],
+        );
+
+        if (similarity < 0.82) break;
+
+        run += 1;
+        queryIndex += 1;
+        candidateIndex += 1;
+      }
+
+      best = Math.max(best, run);
+
+      if (best >= queryTokens.length - start) break;
+    }
+
+    if (best >= queryTokens.length - start) break;
+  }
+
+  return best;
+}
+
 function normalizeLyricsLines(value) {
   return String(value || "")
     .replace(/\r/g, "")
