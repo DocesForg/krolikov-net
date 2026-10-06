@@ -29,7 +29,6 @@ export default function App() {
         ? await musicServices.recognizeFromMicrophone(file)
         : await musicServices.recognize(file);
       dispatch(setTrack(result.track));
-      setAiInsight(null);
       if (!result.track) dispatch(setError("Трек не найден. AcoustID и Gemini не смогли уверенно определить эту запись."));
     } catch (e) { dispatch(setError(e instanceof Error ? e.message : "Ошибка распознавания")); }
   };
