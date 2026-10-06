@@ -41,7 +41,7 @@ async function callAgent(input) {
           search_context_size: "low",
         },
       ],
-    }),,
+    }),
     signal: AbortSignal.timeout(45000),
   });
 
