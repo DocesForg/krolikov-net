@@ -23,7 +23,7 @@ export class LrcLibLyricsService {
 
     try {
       const response = await fetch(url, { signal: controller.signal });
-      const data = await response.json() as LrcLibItem[] | { error?: string };
+      const data = await response.json() as LrcLibItem[] | { error?: string; results?: LrcLibItem[]; yandexAnswer?: string };
 
       if (!response.ok) {
         throw new Error(
@@ -33,9 +33,9 @@ export class LrcLibLyricsService {
         );
       }
 
-      if (!Array.isArray(data)) return [];
+      const results = Array.isArray(data) ? data : (Array.isArray(data.results) ? data.results : []);
 
-      return data.map((item) => ({
+      if (!Array.isArray(data) && data.yandexAnswer) {\n        throw new Error("Yandex ответил: " + data.yandexAnswer);\n      }\n\n      return results.map((item) => ({
         track: item.trackName,
         artist: item.artistName,
         album: item.albumName ?? item.album ?? null,
