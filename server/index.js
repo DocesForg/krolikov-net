@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import acoustid from "acoustid";
 import { analyzeTrack, identifyLyrics, recognizeAudio } from "./gemini.js";
+import { generativeSearch } from "./yandex.js";
 
 const app = express();
 const upload = multer({
@@ -628,6 +629,20 @@ app.get("/api/lyrics/search", async (req, res) => {
   }
 });
 ;
+
+app.post("/api/yandex/generative", async (req, res) => {
+  const query = String(req.body?.query || "").trim();
+  if (!query) return res.status(400).json({ error: "Поисковый запрос пуст" });
+
+  try {
+    const result = await generativeSearch(query);
+    res.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Yandex Search API не смог сформировать ответ";
+    const status = /не настроен/.test(message) ? 500 : 502;
+    res.status(status).json({ error: message });
+  }
+});
 
 app.post("/api/gemini/analyze", async (req, res) => {
   try {
