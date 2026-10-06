@@ -15,6 +15,8 @@ export default function App() {
   const [aiLoading, setAiLoading] = useState(false);
   const [expandedLyrics, setExpandedLyrics] = useState<string | null>(null);
   const [yandexResult, setYandexResult] = useState<LyricsSearchResult["yandex"]>(null);
+  const [similarLyrics, setSimilarLyrics] = useState<import("./types/music").Lyrics[]>([]);
+  const [similarLyricsLoading, setSimilarLyricsLoading] = useState(false);
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
 
@@ -55,6 +57,21 @@ export default function App() {
       dispatch(setError(e instanceof Error ? e.message : "Ошибка AI-анализа"));
     } finally {
       setAiLoading(false);
+    }
+  };
+
+  const findSimilarLyrics = async (item: import("./types/music").Lyrics) => {
+    setSimilarLyricsLoading(true);
+    try {
+      const result = await musicServices.searchSimilarLyrics(item.artist, item.track);
+      setSimilarLyrics(result.results);
+      if (result.results.length === 0) {
+        dispatch(setError("Похожие треки найдены, но тексты для них не найдены в LRCLIB."));
+      }
+    } catch (e) {
+      dispatch(setError(e instanceof Error ? e.message : "Ошибка поиска похожих текстов"));
+    } finally {
+      setSimilarLyricsLoading(false);
     }
   };
 
@@ -182,12 +199,40 @@ export default function App() {
             <h3>{item.track}</h3><p>{item.artist}</p>
             {item.album && <small>{item.album}</small>}
             {text && <div className="lyrics-preview">{isExpanded ? text : preview}</div>}
-            {text.length > 240 && <button className="lyrics-toggle" onClick={() => setExpandedLyrics(isExpanded ? null : key)}>
-              {isExpanded ? "Свернуть текст ↑" : "Показать весь текст ↓"}
-            </button>}
+            {text.length > 240 && <div className="lyrics-actions">
+              <button className="lyrics-toggle" onClick={() => setExpandedLyrics(isExpanded ? null : key)}>
+                {isExpanded ? "Свернуть текст ↑" : "Показать весь текст ↓"}
+              </button>
+              <button className="lyrics-toggle" onClick={() => void findSimilarLyrics(item)} disabled={similarLyricsLoading}>
+                {similarLyricsLoading ? "Ищем похожие…" : "Показать похожие"}
+              </button>
+            </div>}
           </div>
         </article>;
       })}</div>
+    </section>}
+
+    {similarLyrics.length > 0 && <section className="results">
+      <div className="section-heading"><span>SIMILAR LYRICS</span><h2>Похожие треки с текстом</h2></div>
+      <div className="lyrics-grid">
+        {similarLyrics.map((item, i) => {
+          const key = `similar-${item.artist}-${item.track}-${i}`;
+          const text = item.plainLyrics || item.syncedLyrics || "";
+          const isExpanded = expandedLyrics === key;
+          const preview = text.length > 240 ? text.slice(0, 240) + "…" : text;
+          return <article className={`lyrics-card ${isExpanded ? "is-expanded" : ""}`} key={key}>
+            {item.artworkUrl ? <img src={item.artworkUrl} alt="" className="lyrics-cover" /> : <div className="lyrics-cover placeholder">♪</div>}
+            <div className="lyrics-card-content">
+              <h3>{item.track}</h3><p>{item.artist}</p>
+              {item.album && <small>{item.album}</small>}
+              {text && <div className="lyrics-preview">{isExpanded ? text : preview}</div>}
+              {text.length > 240 && <button className="lyrics-toggle" onClick={() => setExpandedLyrics(isExpanded ? null : key)}>
+                {isExpanded ? "Свернуть текст ↑" : "Показать весь текст ↓"}
+              </button>}
+            </div>
+          </article>;
+        })}
+      </div>
     </section>}
 
     {similar.length > 0 && <section className="results">
