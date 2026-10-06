@@ -24,7 +24,7 @@ async function callAgent(input) {
     method: "POST",
     headers: {
       Authorization: `Api-Key ${getApiKey()}`,
-      "OpenAI-Project": YANDEX_PROJECT_ID,
+      "OpenAI-Organization": YANDEX_PROJECT_ID,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
