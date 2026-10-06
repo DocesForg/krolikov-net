@@ -576,27 +576,61 @@ function splitLyricsQuery(query) {
   return [...new Set(phrases)].slice(0, 16);
 }
 
+function isDirectLrcLibQuery(query) {
+  const normalized = String(query || "").replace(/\\s+/g, " ").trim();
+  if (!normalized) return false;
+
+  const tokens = normalized.split(" ").filter(Boolean);
+
+  // Короткий запрос без переноса строк считаем поиском по исполнителю/названию.
+  // В таком случае Yandex вообще не вызывается: сначала сразу LRCLIB.
+  if (!normalized.includes("\n") && tokens.length <= 8 && normalized.length <= 120) {
+    return true;
+  }
+
+  return false;
+}
+
 app.get("/api/lyrics/search", async (req, res) => {
   const query = String(req.query.q || "").trim();
   if (!query) return res.status(400).json({ error: "Поисковый запрос пуст" });
 
   try {
-    // Сначала Yandex определяет песню по введённому тексту.
-    // Gemini в этом сценарии не используется.
+    if (isDirectLrcLibQuery(query)) {
+      // Короткий запрос: исполнитель/название → сразу LRCLIB.
+      // Yandex и Gemini здесь не используются.
+      const results = await searchLrcLib(query);
+
+      return res.json(
+        await enrichLyricsResults(
+          results
+            .slice(0, 20)
+            .map((item) => ({
+              ...item,
+              textScore: 0,
+            })),
+        ),
+      );
+    }
+
+    // Длинный текст/фрагмент песни: Yandex определяет исполнителя
+    // и точное название, после чего найденная песня отправляется в LRCLIB.
     const identified = await identifyTrackFromLyrics(query);
 
     if (!identified.artist || !identified.title || identified.confidence < 0.45) {
       return res.json([]);
     }
 
-    // Затем точное название/исполнитель отправляются в LRCLIB.
     const exact = await getLrcLibTrack(identified.artist, identified.title);
     const results = exact
       ? [exact]
       : await searchLrcLib(`${identified.artist} ${identified.title}`);
+
     const ranked = results
       .map((item) => ({
         ...item,
+        // Для Yandex-идентификации не отбрасываем результат из-за
+        // несовпадения текста: Yandex уже определил конкретную песню.
         textScore: scoreLyricsMatch(item, query),
       }))
       .sort((a, b) => {
