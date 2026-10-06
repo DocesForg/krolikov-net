@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import acoustid from "acoustid";
 import { analyzeTrack, recognizeAudio } from "./gemini.js";
-import { generativeSearch } from "./yandex.js";
+import { generativeSearch, identifyTrackFromLyrics } from "./yandex.js";
 
 const app = express();
 const upload = multer({
@@ -581,10 +581,19 @@ app.get("/api/lyrics/search", async (req, res) => {
   if (!query) return res.status(400).json({ error: "Поисковый запрос пуст" });
 
   try {
-    // Текстовый поиск работает напрямую через LRCLIB.
-    // Gemini здесь не используется: название, исполнитель или фрагмент текста
-    // сразу отправляются в LRCLIB.
-    const results = await searchLrcLib(query);
+    // Сначала Yandex определяет песню по введённому тексту.
+    // Gemini в этом сценарии не используется.
+    const identified = await identifyTrackFromLyrics(query);
+
+    if (!identified.artist || !identified.title || identified.confidence < 0.45) {
+      return res.json([]);
+    }
+
+    // Затем точное название/исполнитель отправляются в LRCLIB.
+    const exact = await getLrcLibTrack(identified.artist, identified.title);
+    const results = exact
+      ? [exact]
+      : await searchLrcLib(`${identified.artist} ${identified.title}`);
     const ranked = results
       .map((item) => ({
         ...item,
