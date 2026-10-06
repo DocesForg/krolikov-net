@@ -23,11 +23,7 @@ function normalizeSources(value) {
     .slice(0, 10);
 }
 
-export async function generativeSearch(query) {
-  const trimmed = String(query || "").trim();
-  if (!trimmed) throw new Error("Поисковый запрос пуст");
-  if (trimmed.length > 4000) throw new Error("Запрос слишком длинный");
-
+async function callYandex(messages) {
   const { apiKey, folderId } = getConfig();
 
   const response = await fetch(ENDPOINT, {
@@ -37,10 +33,7 @@ export async function generativeSearch(query) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      messages: [{
-        content: trimmed,
-        role: "ROLE_USER",
-      }],
+      messages,
       folderId,
       fixMisspell: true,
       enableNrfmDocs: false,
@@ -59,7 +52,61 @@ export async function generativeSearch(query) {
       : `Yandex Search API HTTP ${response.status}`);
   }
 
-  const result = Array.isArray(data) ? data[0] : data;
+  return Array.isArray(data) ? data[0] : data;
+}
+
+export async function identifyTrackFromLyrics(query) {
+  const trimmed = String(query || "").trim();
+  if (!trimmed) throw new Error("Поисковый запрос пуст");
+  if (trimmed.length > 4000) throw new Error("Текст слишком длинный");
+
+  const result = await callYandex([{
+    role: "ROLE_USER",
+    content: `Ты определяешь существующую песню по фрагменту текста.
+
+Найди песню, которой принадлежат эти строки. Используй веб-поиск Yandex, если это необходимо.
+Нужны именно исполнитель и точное название песни. Не придумывай данные.
+
+Верни ТОЛЬКО JSON без markdown:
+{"artist":"исполнитель","title":"точное название песни","confidence":0.0}
+
+Если определить нельзя:
+{"artist":"","title":"","confidence":0.0}
+
+Текст песни:
+${trimmed}`,
+  }]);
+
+  const content = typeof result?.message?.content === "string"
+    ? result.message.content.trim()
+    : "";
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(content.replace(/^\`\`\`json\s*/i, "").replace(/\s*\`\`\`$/i, ""));
+  } catch {
+    const match = content.match(/\{[\s\S]*"artist"[\s\S]*"title"[\s\S]*\}/i);
+    if (match) {
+      try { parsed = JSON.parse(match[0]); } catch { parsed = null; }
+    }
+  }
+
+  return {
+    artist: typeof parsed?.artist === "string" ? parsed.artist.trim() : "",
+    title: typeof parsed?.title === "string" ? parsed.title.trim() : "",
+    confidence: Number.isFinite(Number(parsed?.confidence)) ? Number(parsed.confidence) : 0,
+  };
+}
+
+export async function generativeSearch(query) {
+  const trimmed = String(query || "").trim();
+  if (!trimmed) throw new Error("Поисковый запрос пуст");
+  if (trimmed.length > 4000) throw new Error("Запрос слишком длинный");
+
+  const result = await callYandex([{
+    content: trimmed,
+    role: "ROLE_USER",
+  }]);
   const content = typeof result?.message?.content === "string"
     ? result.message.content.trim()
     : "";
