@@ -99,10 +99,10 @@ ${trimmed}`,
   // Yandex иногда оборачивает короткий ответ в markdown/кавычки.
   // Убираем только техническое оформление, не меняя сами данные.
   const cleaned = content
-    .replace(/^\`\`\`(?:text|txt)?\\s*/i, "")
-    .replace(/\\s*\`\`\`$/i, "")
+    .replace(/^\`\`\`(?:text|txt)?\s*/i, "")
+    .replace(/\s*\`\`\`$/i, "")
     .replace(/^["'«]+|["'»]+$/g, "")
-    .split("\\n")
+    .split("\n")
     .map((line) => line.trim())
     .filter(Boolean)[0] || "";
 
