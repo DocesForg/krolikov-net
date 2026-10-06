@@ -89,4 +89,30 @@ export class LrcLibLyricsService {
       results: (data.results || []).map(mapLyrics),
     };
   }
+  async searchByGenre(genre: string) {
+    const response = await fetch("/api/lyrics/genre", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ genre }),
+    });
+
+    const data = await response.json() as {
+      error?: string;
+      genre?: string;
+      recommendations?: { artist: string; title: string }[];
+      results?: LrcLibItem[];
+    };
+
+    if (!response.ok) {
+      throw new Error(data.error || `LRCLIB HTTP ${response.status}`);
+    }
+
+    return {
+      genre: data.genre || genre,
+      recommendations: data.recommendations || [],
+      results: (data.results || []).map(mapLyrics),
+    };
+  }
+
+
 }
