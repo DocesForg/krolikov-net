@@ -126,21 +126,16 @@ function parseAgentOutput(data) {
 }
 
 export async function identifyTrackFromLyrics(query) {
-  const trimmed = String(query || "").trim();
+  // ВАЖНО: передаём Yandex Agent исходный текст пользователя без изменений.
+  // Не trim, не нормализуем пробелы, не меняем регистр, не удаляем строки
+  // и не добавляем собственные инструкции в input. Инструкции находятся
+  // в настройках самого Yandex Agent.
+  const input = String(query ?? "");
 
-  if (!trimmed) throw new Error("Поисковый запрос пуст");
-  if (trimmed.length > 4000) throw new Error("Текст слишком длинный");
+  if (!input.trim()) throw new Error("Поисковый запрос пуст");
+  if (input.length > 4000) throw new Error("Текст слишком длинный");
 
-  const result = await callAgent(
-    `Определи песню по фрагменту текста ниже.
-
-Верни исполнителя и точное официальное название песни.
-Используй подключённый веб-поиск агента, если он доступен.
-Не угадывай. Если уверенно определить песню нельзя, верни found=false, пустые artist/title и confidence=0.
-
-Фрагмент текста песни:
-${trimmed}`,
-  );
+  const result = await callAgent(input);
 
   return parseAgentOutput(result);
 }
