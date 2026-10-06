@@ -131,6 +131,69 @@ export async function identifyTrackFromLyrics(query) {
 
 // Совместимость с /api/yandex/generative.
 // Старый Legacy Search API удалён: теперь запрос также идёт через Yandex Agent.
+function parseSimilarTracksOutput(outputText) {
+  const text = typeof outputText === "string" ? outputText.trim() : "";
+  if (!text) return [];
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      try { parsed = JSON.parse(jsonMatch[0]); } catch { parsed = null; }
+    }
+  }
+
+  if (Array.isArray(parsed)) {
+    return parsed
+      .map((item) => ({
+        artist: String(item?.artist || item?.artistName || "").trim(),
+        title: String(item?.title || item?.track || item?.trackName || "").trim(),
+      }))
+      .filter((item) => item.artist && item.title)
+      .slice(0, 8);
+  }
+
+  const results = [];
+  for (const line of text.split(/\r?\n/)) {
+    const clean = line
+      .replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "")
+      .trim();
+    const match = clean.match(/^(.+?)\s+[-–—]\s+(.+?)$/);
+    if (match) {
+      const artist = match[1].trim();
+      const title = match[2].trim();
+      if (artist && title) results.push({ artist, title });
+    }
+  }
+
+  return results.slice(0, 8);
+}
+
+export async function findSimilarTracksFromAgent(artist, title) {
+  const input = `Найди похожие треки на "${title}"`;
+  const response = await getClient().responses.create({
+    prompt: {
+      id: YANDEX_AGENT_ID,
+    },
+    input,
+    tools: [
+      {
+        type: "web_search",
+        filters: {
+          allowed_domains: [],
+        },
+        search_context_size: "low",
+      },
+    ],
+  });
+
+  return parseSimilarTracksOutput(response.output_text)
+    .filter((item) => !(item.artist.toLowerCase() === String(artist).toLowerCase()
+      && item.title.toLowerCase() === String(title).toLowerCase()));
+}
+
 export async function generativeSearch(query) {
   const input = String(query ?? "").trim();
 
