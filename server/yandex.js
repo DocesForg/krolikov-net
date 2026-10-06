@@ -1,7 +1,5 @@
 const RESPONSES_ENDPOINT = "https://ai.api.cloud.yandex.net/v1/responses";
 const LEGACY_SEARCH_ENDPOINT = "https://searchapi.api.cloud.yandex.net/v2/gen/search";
-const YANDEX_PROJECT_ID = "b1gfj3v8keh3qobuh6rv";
-const YANDEX_AGENT_ID = "fvtm93a73klntd04lf7p";
 
 function getApiKey() {
   const apiKey = (process.env.YANDEX_API_KEY || "").trim();
@@ -10,7 +8,9 @@ function getApiKey() {
 }
 
 function getAgentId() {
-  return YANDEX_AGENT_ID;
+  const agentId = (process.env.YANDEX_AGENT_ID || "").trim();
+  if (!agentId) throw new Error("YANDEX_AGENT_ID не настроен");
+  return agentId;
 }
 
 function getFolderId() {
@@ -24,7 +24,6 @@ async function callAgent(input) {
     method: "POST",
     headers: {
       Authorization: `Api-Key ${getApiKey()}`,
-      "OpenAI-Organization": YANDEX_PROJECT_ID,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -32,18 +31,24 @@ async function callAgent(input) {
         id: getAgentId(),
       },
       input,
-      tools: [
-        {
-          type: "web_search",
-          filters: {
-            allowed_domains: [],
+      store: false,
+      text: {
+        format: {
+          type: "json_schema",
+          name: "track_identification",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              found: { type: "boolean" },
+              artist: { type: "string" },
+              title: { type: "string" },
+              confidence: { type: "number" },
+            },
+            required: ["found", "artist", "title", "confidence"],
+            additionalProperties: false,
           },
-          search_context_size: "low",
         },
-      ],
-      // Для поиска текста песни Web Search обязателен.
-      tool_choice: {
-        type: "web_search",
       },
     }),
     signal: AbortSignal.timeout(45000),
@@ -72,7 +77,7 @@ function parseAgentOutput(data) {
     try {
       parsed = JSON.parse(outputText);
     } catch {
-      const jsonMatch = outputText.match(/\{[\s\S]*\}/);
+      const jsonMatch = outputText.match(/\\{[\\s\\S]*\\}/);
       if (jsonMatch) {
         try {
           parsed = JSON.parse(jsonMatch[0]);
@@ -88,18 +93,10 @@ function parseAgentOutput(data) {
       for (const content of Array.isArray(item?.content) ? item.content : []) {
         if (typeof content?.text !== "string") continue;
         try {
-          parsed = JSON.parse(content.text.trim());
+          parsed = JSON.parse(content.text);
           break;
         } catch {
-          const jsonMatch = content.text.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            try {
-              parsed = JSON.parse(jsonMatch[0]);
-              break;
-            } catch {
-              // Продолжаем искать JSON в других частях ответа.
-            }
-          }
+          // Продолжаем искать JSON в других частях ответа.
         }
       }
       if (parsed) break;
