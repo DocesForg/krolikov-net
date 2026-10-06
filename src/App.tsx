@@ -13,7 +13,8 @@ export default function App() {
   const [dragging, setDragging] = useState(false);
   const [aiInsight, setAiInsight] = useState<import("./types/music").AiTrackInsight | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
-  const [expandedLyrics, setExpandedLyrics] = useState<string | null>(null);\n  const [yandexResult, setYandexResult] = useState<LyricsSearchResult["yandex"]>(null);
+  const [expandedLyrics, setExpandedLyrics] = useState<string | null>(null);
+  const [yandexResult, setYandexResult] = useState<LyricsSearchResult["yandex"]>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
 
