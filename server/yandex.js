@@ -62,16 +62,27 @@ export async function identifyTrackFromLyrics(query) {
 
   const result = await callYandex([{
     role: "ROLE_USER",
-    content: `Ты определяешь существующую песню по фрагменту текста.
+    content: `Ты находишь существующую песню по фрагменту текста.
 
-Найди песню, которой принадлежат эти строки. Используй веб-поиск Yandex, если это необходимо.
-Нужны именно исполнитель и точное название песни. Не придумывай данные.
+Используй веб-поиск Yandex, чтобы точно определить песню.
+Тебе нужны только:
+1. название группы или исполнителя;
+2. точное официальное название песни.
 
-Верни ТОЛЬКО JSON без markdown:
-{"artist":"исполнитель","title":"точное название песни","confidence":0.0}
+КРИТИЧЕСКИ ВАЖНО:
+- Верни РОВНО ОДНУ строку.
+- Формат ответа строго: ИСПОЛНИТЕЛЬ - НАЗВАНИЕ ПЕСНИ
+- Между исполнителем и названием песни должен быть ровно разделитель " - ".
+- Не добавляй кавычки.
+- Не добавляй JSON.
+- Не добавляй markdown.
+- Не добавляй пояснения.
+- Не добавляй источники, ссылки, confidence или другие данные.
+- Не пиши слова "Исполнитель:", "Название:" и подобные подписи.
+- Если не можешь достоверно определить песню, верни пустую строку.
 
-Если определить нельзя:
-{"artist":"","title":"","confidence":0.0}
+Пример правильного ответа:
+The Weeknd - Blinding Lights
 
 Текст песни:
 ${trimmed}`,
@@ -81,20 +92,37 @@ ${trimmed}`,
     ? result.message.content.trim()
     : "";
 
-  let parsed = null;
-  try {
-    parsed = JSON.parse(content.replace(/^\`\`\`json\s*/i, "").replace(/\s*\`\`\`$/i, ""));
-  } catch {
-    const match = content.match(/\{[\s\S]*"artist"[\s\S]*"title"[\s\S]*\}/i);
-    if (match) {
-      try { parsed = JSON.parse(match[0]); } catch { parsed = null; }
-    }
+  if (!content) {
+    return { artist: "", title: "", confidence: 0 };
+  }
+
+  // Yandex иногда оборачивает короткий ответ в markdown/кавычки.
+  // Убираем только техническое оформление, не меняя сами данные.
+  const cleaned = content
+    .replace(/^\`\`\`(?:text|txt)?\\s*/i, "")
+    .replace(/\\s*\`\`\`$/i, "")
+    .replace(/^["'«]+|["'»]+$/g, "")
+    .split("\\n")
+    .map((line) => line.trim())
+    .filter(Boolean)[0] || "";
+
+  // Ожидаем единственный разделитель " - ".
+  const separatorIndex = cleaned.indexOf(" - ");
+  if (separatorIndex <= 0 || separatorIndex >= cleaned.length - 3) {
+    return { artist: "", title: "", confidence: 0 };
+  }
+
+  const artist = cleaned.slice(0, separatorIndex).trim();
+  const title = cleaned.slice(separatorIndex + 3).trim();
+
+  if (!artist || !title) {
+    return { artist: "", title: "", confidence: 0 };
   }
 
   return {
-    artist: typeof parsed?.artist === "string" ? parsed.artist.trim() : "",
-    title: typeof parsed?.title === "string" ? parsed.title.trim() : "",
-    confidence: Number.isFinite(Number(parsed?.confidence)) ? Number(parsed.confidence) : 0,
+    artist,
+    title,
+    confidence: 1,
   };
 }
 
