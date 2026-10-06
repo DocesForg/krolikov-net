@@ -21,7 +21,7 @@ export class LrcLibLyricsService {
     const trimmed = query.trim();
 
     if (!trimmed) {
-      return [];
+      return { yandex: null, results: [] };
     }
 
     const url = new URL("/api/lyrics/search", window.location.origin);
@@ -37,7 +37,9 @@ export class LrcLibLyricsService {
 
       const data = await response.json() as
         | LrcLibItem[]
-        | LrcLibDebugResponse & {\n            yandex?: LyricsSearchResult["yandex"];\n          };
+        | (LrcLibDebugResponse & {
+            yandex?: LyricsSearchResult["yandex"];
+          });
 
       if (!response.ok) {
         throw new Error(
@@ -56,19 +58,18 @@ export class LrcLibLyricsService {
           ? data.results
           : [];
 
-      if (!Array.isArray(data) && data.yandexAnswer) {
-        throw new Error(`Yandex ответил: ${data.yandexAnswer}`);
-      }
-
-      return results.map((item) => ({
-        track: item.trackName,
-        artist: item.artistName,
-        album: item.albumName ?? item.album ?? null,
-        artworkUrl: item.artworkUrl ?? null,
-        plainLyrics: item.plainLyrics,
-        syncedLyrics: item.syncedLyrics,
-        source: "LRCLIB",
-      }));
+      return {
+        yandex: !Array.isArray(data) ? data.yandex ?? null : null,
+        results: results.map((item) => ({
+          track: item.trackName,
+          artist: item.artistName,
+          album: item.albumName ?? item.album ?? null,
+          artworkUrl: item.artworkUrl ?? null,
+          plainLyrics: item.plainLyrics,
+          syncedLyrics: item.syncedLyrics,
+          source: "LRCLIB",
+        })),
+      };
     } catch (error) {
       if (
         error instanceof DOMException &&
