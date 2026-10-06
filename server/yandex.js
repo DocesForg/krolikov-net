@@ -32,6 +32,34 @@ function parseAgentOutput(outputText) {
     };
   }
 
+  // Основной формат ответа агента:
+  // "Black Eyed Peas - Pump It"
+  // Также поддерживаем длинное тире и дефис с пробелами.
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  for (const line of lines) {
+    const match = line.match(/^(.+?)\s+[-–—]\s+(.+?)$/);
+    if (match) {
+      const artist = match[1].trim();
+      const title = match[2].trim();
+
+      if (artist && title) {
+        return {
+          found: true,
+          artist,
+          title,
+          confidence: 1,
+          raw: text,
+        };
+      }
+    }
+  }
+
+  // Дополнительно поддерживаем JSON, если агент когда-нибудь начнёт
+  // возвращать структурированный ответ.
   let parsed = null;
 
   try {
@@ -47,27 +75,29 @@ function parseAgentOutput(outputText) {
     }
   }
 
-  if (!parsed || typeof parsed !== "object") {
-    return {
-      found: false,
-      artist: "",
-      title: "",
-      confidence: 0,
-      raw: text,
-    };
+  if (parsed && typeof parsed === "object") {
+    const artist = typeof parsed.artist === "string" ? parsed.artist.trim() : "";
+    const title = typeof parsed.title === "string" ? parsed.title.trim() : "";
+    const confidence = Number(parsed.confidence);
+
+    if (artist && title) {
+      return {
+        found: true,
+        artist,
+        title,
+        confidence: Number.isFinite(confidence)
+          ? Math.max(0, Math.min(1, confidence))
+          : 1,
+        raw: text,
+      };
+    }
   }
 
-  const artist = typeof parsed.artist === "string" ? parsed.artist.trim() : "";
-  const title = typeof parsed.title === "string" ? parsed.title.trim() : "";
-  const confidence = Number(parsed.confidence);
-
   return {
-    found: Boolean(parsed.found),
-    artist,
-    title,
-    confidence: Number.isFinite(confidence)
-      ? Math.max(0, Math.min(1, confidence))
-      : 0,
+    found: false,
+    artist: "",
+    title: "",
+    confidence: 0,
     raw: text,
   };
 }
