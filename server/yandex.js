@@ -31,26 +31,16 @@ async function callAgent(input) {
         id: getAgentId(),
       },
       input,
-      store: false,
-      text: {
-        format: {
-          type: "json_schema",
-          name: "track_identification",
-          strict: true,
-          schema: {
-            type: "object",
-            properties: {
-              found: { type: "boolean" },
-              artist: { type: "string" },
-              title: { type: "string" },
-              confidence: { type: "number" },
-            },
-            required: ["found", "artist", "title", "confidence"],
-            additionalProperties: false,
+      tools: [
+        {
+          type: "web_search",
+          filters: {
+            allowed_domains: [],
           },
+          search_context_size: "low",
         },
-      },
-    }),
+      ],
+    }),,
     signal: AbortSignal.timeout(45000),
   });
 
