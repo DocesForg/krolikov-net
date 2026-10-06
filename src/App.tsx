@@ -17,6 +17,10 @@ export default function App() {
   const [yandexResult, setYandexResult] = useState<LyricsSearchResult["yandex"]>(null);
   const [similarLyrics, setSimilarLyrics] = useState<import("./types/music").Lyrics[]>([]);
   const [similarLyricsLoading, setSimilarLyricsLoading] = useState(false);
+  const [genre, setGenre] = useState("");
+  const [genreLyrics, setGenreLyrics] = useState<import("./types/music").Lyrics[]>([]);
+  const [genreRecommendations, setGenreRecommendations] = useState<{ artist: string; title: string }[]>([]);
+  const [genreLoading, setGenreLoading] = useState(false);
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
 
@@ -47,6 +51,27 @@ export default function App() {
       dispatch(setLyrics(result.results));
       if (result.results.length === 0) dispatch(setError("По вашему запросу ничего не найдено в LRCLIB."));
     } catch (e) { dispatch(setError(e instanceof Error ? e.message : "Ошибка поиска текста")); }
+  };
+
+  const searchByGenre = async () => {
+    const value = genre.trim();
+    if (!value || genreLoading) return;
+
+    setGenreLoading(true);
+    setGenreLyrics([]);
+    setGenreRecommendations([]);
+    try {
+      const result = await musicServices.searchByGenre(value);
+      setGenreRecommendations(result.recommendations);
+      setGenreLyrics(result.results);
+      if (result.results.length === 0) {
+        dispatch(setError("Yandex подобрал песни, но тексты для них не найдены в LRCLIB."));
+      }
+    } catch (e) {
+      dispatch(setError(e instanceof Error ? e.message : "Ошибка поиска песен по жанру"));
+    } finally {
+      setGenreLoading(false);
+    }
   };
 
   const analyzeWithAi = async (source: Track) => {
@@ -137,6 +162,18 @@ export default function App() {
         <button type="submit" disabled={loading}>{loading ? "Ищем…" : "Найти"}</button>
       </form>
 
+      <div className="divider"><span>или подобрать песни по жанру</span></div>
+      <form className="search genre-search" onSubmit={(e) => { e.preventDefault(); void searchByGenre(); }}>
+        <input
+          value={genre}
+          onChange={(e) => setGenre(e.target.value)}
+          placeholder="Например: synthwave, рок, джаз…"
+          aria-label="Жанр для поиска песен"
+        />
+        <button type="submit" disabled={genreLoading}>{genreLoading ? "Ищем…" : "Найти"}</button>
+      </form>
+
+
     </section>
 
     {error && <section className="message error">{error}</section>}
@@ -210,6 +247,32 @@ export default function App() {
           </div>
         </article>;
       })}</div>
+    </section>}
+
+    {genreLyrics.length > 0 && <section className="results">
+      <div className="section-heading"><span>YANDEX · LRCLIB</span><h2>Песни в жанре «{genre}»</h2></div>
+      {genreRecommendations.length > 0 && <div className="genre-recommendations">
+        {genreRecommendations.map((item, i) => <span key={`${item.artist}-${item.title}-${i}`}>{item.artist} — {item.title}</span>)}
+      </div>}
+      <div className="lyrics-grid">
+        {genreLyrics.map((item, i) => {
+          const key = `genre-${item.artist}-${item.track}-${i}`;
+          const text = item.plainLyrics || item.syncedLyrics || "";
+          const isExpanded = expandedLyrics === key;
+          const preview = text.length > 240 ? text.slice(0, 240) + "…" : text;
+          return <article className={`lyrics-card ${isExpanded ? "is-expanded" : ""}`} key={key}>
+            {item.artworkUrl ? <img src={item.artworkUrl} alt="" className="lyrics-cover" /> : <div className="lyrics-cover placeholder">♪</div>}
+            <div className="lyrics-card-content">
+              <h3>{item.track}</h3><p>{item.artist}</p>
+              {item.album && <small>{item.album}</small>}
+              {text && <div className="lyrics-preview">{isExpanded ? text : preview}</div>}
+              {text.length > 240 && <button className="lyrics-toggle" onClick={() => setExpandedLyrics(isExpanded ? null : key)}>
+                {isExpanded ? "Свернуть текст ↑" : "Показать весь текст ↓"}
+              </button>}
+            </div>
+          </article>;
+        })}
+      </div>
     </section>}
 
     {similarLyrics.length > 0 && <section className="results">
