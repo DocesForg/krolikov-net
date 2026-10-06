@@ -87,7 +87,7 @@ export default function App() {
 
   return <main className="app-shell">
     <header className="topbar">
-      <div className="brand"><span className="brand-mark">K</span><span>{import.meta.env.VITE_APP_NAME || "Krolikov"}</span></div>
+      <div className="brand"><span className="brand-mark" aria-hidden="true">🐰🎧</span><span>krolikov.net</span></div>
       <span className="status">MUSIC SEARCH</span>
     </header>
 
@@ -169,7 +169,7 @@ export default function App() {
 
     {lyrics.length > 0 && <section className="results">
       <div className="section-heading"><span>LYRICS</span><h2>Результаты по тексту</h2></div>
-      <div className="lyrics-grid">{lyrics.slice(0, 8).map((item, i) => {
+      <div className={"lyrics-grid " + (lyrics.length === 1 ? "is-single" : "")}>{lyrics.slice(0, 8).map((item, i) => {
         const key = item.artist + "-" + item.track + "-" + i;
         const isExpanded = expandedLyrics === key;
         const text = item.plainLyrics || item.syncedLyrics || "";
