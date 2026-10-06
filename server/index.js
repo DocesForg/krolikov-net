@@ -624,16 +624,18 @@ app.get("/api/lyrics/search", async (req, res) => {
       });
     }
 
-    const exact = await getLrcLibTrack(identified.artist, identified.title);
+    // Передаём результат Yandex Agent напрямую в LRCLIB:
+    // сначала точное совпадение artist + title, затем поиск как fallback.
+    const artist = identified.artist.trim();
+    const title = identified.title.trim();
+    const exact = await getLrcLibTrack(artist, title);
     const results = exact
       ? [exact]
-      : await searchLrcLib(`${identified.artist} ${identified.title}`);
+      : await searchLrcLib(`${artist} ${title}`);
 
     const ranked = results
       .map((item) => ({
         ...item,
-        // Для Yandex-идентификации не отбрасываем результат из-за
-        // несовпадения текста: Yandex уже определил конкретную песню.
         textScore: scoreLyricsMatch(item, query),
       }))
       .sort((a, b) => {
@@ -644,7 +646,6 @@ app.get("/api/lyrics/search", async (req, res) => {
 
     return res.json({
       results: await enrichLyricsResults(ranked),
-      yandexAnswer: identified.raw || (identified.artist + " - " + identified.title).trim(),
     });
   } catch (error) {
     res.status(502).json({
