@@ -3,7 +3,7 @@ import type { ChangeEvent, DragEvent } from "react";
 import { musicServices } from "./services/music";
 import { useAppDispatch, useAppSelector } from "./store/hooks";
 import { setError, setLyrics, setSimilar, setTrack, startLoading } from "./store/musicSlice";
-import type { Track } from "./types/music";
+import type { LyricsSearchResult, Track } from "./types/music";
 
 export default function App() {
   const dispatch = useAppDispatch();
@@ -13,7 +13,7 @@ export default function App() {
   const [dragging, setDragging] = useState(false);
   const [aiInsight, setAiInsight] = useState<import("./types/music").AiTrackInsight | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
-  const [expandedLyrics, setExpandedLyrics] = useState<string | null>(null);
+  const [expandedLyrics, setExpandedLyrics] = useState<string | null>(null);\n  const [yandexResult, setYandexResult] = useState<LyricsSearchResult["yandex"]>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
 
@@ -39,9 +39,10 @@ export default function App() {
     if (!query.trim() || loading) return;
     dispatch(startLoading());
     try {
-      const results = await musicServices.searchLyrics(query);
-      dispatch(setLyrics(results));
-      if (results.length === 0) dispatch(setError("По вашему запросу ничего не найдено в LRCLIB."));
+      const result = await musicServices.searchLyrics(query);
+      setYandexResult(result.yandex);
+      dispatch(setLyrics(result.results));
+      if (result.results.length === 0) dispatch(setError("По вашему запросу ничего не найдено в LRCLIB."));
     } catch (e) { dispatch(setError(e instanceof Error ? e.message : "Ошибка поиска текста")); }
   };
 
@@ -124,6 +125,18 @@ export default function App() {
     {error && <section className="message error">{error}</section>}
 
     {loading && <section className="message">Ищем музыку…</section>}
+
+    {yandexResult && <section className="results">
+      <div className="section-heading"><span>YANDEX AGENT</span><h2>Результат Yandex</h2></div>
+      <div className="result-card">
+        <div className="track-info">
+          <span className="eyebrow">Yandex · confidence {Math.round(yandexResult.confidence * 100)}%</span>
+          {yandexResult.artist && <p><strong>Исполнитель:</strong> {yandexResult.artist}</p>}
+          {yandexResult.title && <p><strong>Название:</strong> {yandexResult.title}</p>}
+          {!yandexResult.artist && !yandexResult.title && <p>Песня не определена.</p>}
+        </div>
+      </div>
+    </section>}
 
     {track && <section className="results">
       <div className="result-card">
