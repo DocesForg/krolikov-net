@@ -628,3 +628,66 @@ app.get("/api/lyrics/search", async (req, res) => {
   }
 });
 ;
+
+app.post("/api/gemini/analyze", async (req, res) => {
+  try {
+    const result = await analyzeTrack(req.body?.track || {});
+    res.json(result);
+  } catch (error) {
+    res.status(502).json({
+      error: error instanceof Error ? error.message : "Gemini не смог проанализировать трек",
+    });
+  }
+});
+
+app.post("/api/recognize/file", upload.single("file"), async (req, res) => {
+  if (!acoustIdKey) return res.status(500).json({ error: "ACOUSTID_CLIENT_KEY не настроен" });
+  if (!req.file) return res.status(400).json({ error: "Аудиофайл не передан" });
+
+  try {
+    const results = await new Promise((resolve, reject) => {
+      acoustid(req.file.path, {
+        key: acoustIdKey,
+        meta: "recordings+releasegroups+compress",
+      }, (error, data) => error ? reject(error) : resolve(data));
+    });
+
+    const candidates = Array.isArray(results) ? results : [];
+    const best = candidates
+      .filter((item) => item?.recordings?.length)
+      .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))[0];
+
+    const recording = best?.recordings?.[0];
+    const track = mapRecording(recording);
+    if (track) track.artworkUrl = await findArtwork(track.artist, track.title);
+
+    res.json({
+      track,
+      score: best?.score ?? null,
+      candidates: candidates.length,
+    });
+  } catch (error) {
+    const raw = error && typeof error === "object" ? error : null;
+    const apiCode = raw?.error?.code;
+    const apiMessage = raw?.error?.message;
+
+    res.status(502).json({
+      error: apiCode === 4 || apiMessage === "invalid API key"
+        ? "AcoustID отклонил API-ключ. Нужен Application/Client API Key, а не User API Key."
+        : error instanceof Error ? error.message : "AcoustID не смог обработать файл",
+    });
+  } finally {
+    await fs.rm(req.file.path, { force: true }).catch(() => undefined);
+  }
+});
+
+const distPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
+app.use(express.static(distPath));
+app.use((req, res) => {
+  if (req.method === "GET") return res.sendFile(path.join(distPath, "index.html"));
+  res.status(404).json({ error: "Not found" });
+});
+
+app.listen(port, () => {
+  console.log(`Krolikov server listening on :${port}`);
+});
