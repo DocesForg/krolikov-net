@@ -1,5 +1,7 @@
 const RESPONSES_ENDPOINT = "https://ai.api.cloud.yandex.net/v1/responses";
 const LEGACY_SEARCH_ENDPOINT = "https://searchapi.api.cloud.yandex.net/v2/gen/search";
+const YANDEX_PROJECT_ID = "b1gfj3v8keh3qobuh6rv";
+const YANDEX_AGENT_ID = "fvtm93a73klntd04lf7p";
 
 function getApiKey() {
   const apiKey = (process.env.YANDEX_API_KEY || "").trim();
@@ -8,9 +10,7 @@ function getApiKey() {
 }
 
 function getAgentId() {
-  const agentId = (process.env.YANDEX_AGENT_ID || "").trim();
-  if (!agentId) throw new Error("YANDEX_AGENT_ID не настроен");
-  return agentId;
+  return YANDEX_AGENT_ID;
 }
 
 function getFolderId() {
@@ -24,6 +24,7 @@ async function callAgent(input) {
     method: "POST",
     headers: {
       Authorization: `Api-Key ${getApiKey()}`,
+      "OpenAI-Project": YANDEX_PROJECT_ID,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
