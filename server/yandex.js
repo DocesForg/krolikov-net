@@ -145,6 +145,10 @@ function parseSimilarTracksOutput(outputText) {
     }
   }
 
+  if (parsed && !Array.isArray(parsed) && Array.isArray(parsed.similarTracks)) {
+    parsed = parsed.similarTracks;
+  }
+
   if (Array.isArray(parsed)) {
     return parsed
       .map((item) => ({
