@@ -581,32 +581,9 @@ app.get("/api/lyrics/search", async (req, res) => {
   if (!query) return res.status(400).json({ error: "Поисковый запрос пуст" });
 
   try {
-    const wordCount = lyricsTokens(query).length;
-
-    if (wordCount >= 20) {
-      const identified = await identifyLyrics(query);
-
-      if (identified.confidence >= 0.65 && identified.artist && identified.title) {
-        const exact = await getLrcLibTrack(identified.artist, identified.title);
-
-        if (exact) {
-          return res.json(await enrichLyricsResults([{
-            ...exact,
-            trackName: exact.trackName || identified.title,
-            artistName: exact.artistName || identified.artist,
-            albumName: exact.albumName || exact.album || null,
-          }]));
-        }
-
-        const fallback = await searchLrcLib(identified.artist + " " + identified.title);
-        if (fallback.length) {
-          return res.json(await enrichLyricsResults(fallback.slice(0, 20)));
-        }
-      }
-
-      return res.json([]);
-    }
-
+    // Текстовый поиск работает напрямую через LRCLIB.
+    // Gemini здесь не используется: название, исполнитель или фрагмент текста
+    // сразу отправляются в LRCLIB.
     const results = await searchLrcLib(query);
     const ranked = results
       .map((item) => ({
@@ -628,7 +605,6 @@ app.get("/api/lyrics/search", async (req, res) => {
     });
   }
 });
-;
 
 app.post("/api/yandex/generative", async (req, res) => {
   const query = String(req.body?.query || "").trim();
