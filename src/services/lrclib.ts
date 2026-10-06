@@ -1,4 +1,4 @@
-import type { Lyrics, LyricsSearchResult } from "../types/music";
+import type { LyricsSearchResult } from "../types/music";
 
 interface LrcLibItem {
   trackName: string;
@@ -8,67 +8,6 @@ interface LrcLibItem {
   artworkUrl?: string | null;
   plainLyrics?: string | null;
   syncedLyrics?: string | null;
-  async searchSimilarLyrics(artist: string, title: string) {
-    const response = await fetch("/api/lyrics/similar", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ artist, title }),
-    });
-
-    const data = await response.json() as {
-      error?: string;
-      recommendations?: { artist: string; title: string }[];
-      results?: LrcLibItem[];
-    };
-
-    if (!response.ok) {
-      throw new Error(data.error || `LRCLIB HTTP ${response.status}`);
-    }
-
-    return {
-      recommendations: data.recommendations || [],
-      results: (data.results || []).map((item) => ({
-        track: item.trackName,
-        artist: item.artistName,
-        album: item.albumName ?? item.album ?? null,
-        artworkUrl: item.artworkUrl ?? null,
-        plainLyrics: item.plainLyrics,
-        syncedLyrics: item.syncedLyrics,
-        source: "LRCLIB",
-      })),
-    };
-  }
-
-  async searchSimilarLyrics(artist: string, title: string) {
-    const response = await fetch("/api/lyrics/similar", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ artist, title }),
-    });
-
-    const data = await response.json() as {
-      error?: string;
-      recommendations?: { artist: string; title: string }[];
-      results?: LrcLibItem[];
-    };
-
-    if (!response.ok) {
-      throw new Error(data.error || `LRCLIB HTTP ${response.status}`);
-    }
-
-    return {
-      recommendations: data.recommendations || [],
-      results: (data.results || []).map((item) => ({
-        track: item.trackName,
-        artist: item.artistName,
-        album: item.albumName ?? item.album ?? null,
-        artworkUrl: item.artworkUrl ?? null,
-        plainLyrics: item.plainLyrics,
-        syncedLyrics: item.syncedLyrics,
-        source: "LRCLIB",
-      })),
-    };
-  }
 }
 
 interface LrcLibDebugResponse {
@@ -77,74 +16,77 @@ interface LrcLibDebugResponse {
   yandexAnswer?: string;
 }
 
+function mapLyrics(item: LrcLibItem) {
+  return {
+    track: item.trackName,
+    artist: item.artistName,
+    album: item.albumName ?? item.album ?? null,
+    artworkUrl: item.artworkUrl ?? null,
+    plainLyrics: item.plainLyrics,
+    syncedLyrics: item.syncedLyrics,
+    source: "LRCLIB",
+  } as const;
+}
+
 export class LrcLibLyricsService {
   async searchLyrics(query: string): Promise<LyricsSearchResult> {
     const trimmed = query.trim();
-
-    if (!trimmed) {
-      return { yandex: null, results: [] };
-    }
+    if (!trimmed) return { yandex: null, results: [] };
 
     const url = new URL("/api/lyrics/search", window.location.origin);
     url.searchParams.set("q", trimmed);
-
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 20000);
 
     try {
-      const response = await fetch(url, {
-        signal: controller.signal,
-      });
-
+      const response = await fetch(url, { signal: controller.signal });
       const data = await response.json() as
         | LrcLibItem[]
-        | (LrcLibDebugResponse & {
-            yandex?: LyricsSearchResult["yandex"];
-          });
+        | (LrcLibDebugResponse & { yandex?: LyricsSearchResult["yandex"] });
 
       if (!response.ok) {
         throw new Error(
-          typeof data === "object" &&
-          data &&
-          "error" in data &&
-          data.error
+          typeof data === "object" && data && "error" in data && data.error
             ? data.error
             : `LRCLIB HTTP ${response.status}`,
         );
       }
 
-      const results = Array.isArray(data)
-        ? data
-        : Array.isArray(data.results)
-          ? data.results
-          : [];
-
+      const results = Array.isArray(data) ? data : Array.isArray(data.results) ? data.results : [];
       return {
         yandex: !Array.isArray(data) ? data.yandex ?? null : null,
-        results: results.map((item) => ({
-          track: item.trackName,
-          artist: item.artistName,
-          album: item.albumName ?? item.album ?? null,
-          artworkUrl: item.artworkUrl ?? null,
-          plainLyrics: item.plainLyrics,
-          syncedLyrics: item.syncedLyrics,
-          source: "LRCLIB",
-        })),
+        results: results.map(mapLyrics),
       };
     } catch (error) {
-      if (
-        error instanceof DOMException &&
-        error.name === "AbortError"
-      ) {
-        throw new Error(
-          "Поиск текста занял слишком много времени. " +
-          "LRCLIB сейчас отвечает медленно.",
-        );
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw new Error("Поиск текста занял слишком много времени. LRCLIB сейчас отвечает медленно.");
       }
-
       throw error;
     } finally {
       window.clearTimeout(timeout);
     }
+  }
+
+  async searchSimilarLyrics(artist: string, title: string) {
+    const response = await fetch("/api/lyrics/similar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ artist, title }),
+    });
+
+    const data = await response.json() as {
+      error?: string;
+      recommendations?: { artist: string; title: string }[];
+      results?: LrcLibItem[];
+    };
+
+    if (!response.ok) {
+      throw new Error(data.error || `LRCLIB HTTP ${response.status}`);
+    }
+
+    return {
+      recommendations: data.recommendations || [],
+      results: (data.results || []).map(mapLyrics),
+    };
   }
 }
