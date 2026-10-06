@@ -565,11 +565,12 @@ app.get("/api/lyrics/search", async (req, res) => {
   try {
     const matches = new Map();
 
-    // Запрашиваем LRCLIB по нескольким характерным фразам.
-    // Это позволяет искать целый куплет, не требуя от LRCLIB
-    // поддержки полнотекстового совпадения всего куплета.
-    for (let start = 0; start < queries.length; start += 3) {
-      const batch = queries.slice(start, start + 3);
+    // Всегда сохраняем исходный запрос. Это критично для обычного поиска
+    // по названию/исполнителю, особенно для русских названий.
+    const searchQueries = [query, ...queries.filter((item) => item !== query)];
+
+    for (let start = 0; start < searchQueries.length; start += 3) {
+      const batch = searchQueries.slice(start, start + 3);
 
       const results = await Promise.all(batch.map(async (searchQuery) => {
         try {
@@ -579,12 +580,18 @@ app.get("/api/lyrics/search", async (req, res) => {
         }
       }));
 
-      for (const items of results) {
+      for (let batchIndex = 0; batchIndex < results.length; batchIndex += 1) {
+        const items = results[batchIndex];
+        const searchQuery = batch[batchIndex];
+
         for (const item of items) {
+          const artist = String(item?.artistName || "").trim();
+          const title = String(item?.trackName || "").trim();
+          const album = String(item?.albumName || "").trim();
           const key = [
-            String(item?.artistName || "").trim().toLowerCase(),
-            String(item?.trackName || "").trim().toLowerCase(),
-            String(item?.albumName || "").trim().toLowerCase(),
+            artist.toLowerCase(),
+            title.toLowerCase(),
+            album.toLowerCase(),
           ].join("::");
 
           if (!key || key === "::") continue;
@@ -592,28 +599,84 @@ app.get("/api/lyrics/search", async (req, res) => {
           const current = matches.get(key);
           if (current) {
             current.apiHits += 1;
+            if (searchQuery === query) current.directHit = true;
           } else {
             matches.set(key, {
               ...item,
               apiHits: 1,
+              directHit: searchQuery === query,
             });
           }
         }
       }
     }
 
+    const normalizedQuery = normalizeLyricsText(query);
+    const queryTokens = lyricsTokens(query, { meaningfulOnly: true });
+
     const ranked = [...matches.values()]
-      .map((item) => ({
-        ...item,
-        textScore: scoreLyricsMatch(item, query),
-      }))
+      .map((item) => {
+        const title = String(item?.trackName || "");
+        const artist = String(item?.artistName || "");
+        const album = String(item?.albumName || "");
+
+        const normalizedTitle = normalizeLyricsText(title);
+        const normalizedArtist = normalizeLyricsText(artist);
+        const normalizedAlbum = normalizeLyricsText(album);
+
+        let metadataScore = 0;
+
+        if (normalizedQuery === normalizedTitle) {
+          metadataScore = 100;
+        } else if (normalizedQuery === normalizedArtist) {
+          metadataScore = 96;
+        } else if (
+          normalizedTitle.includes(normalizedQuery) ||
+          normalizedQuery.includes(normalizedTitle)
+        ) {
+          metadataScore = 88;
+        } else if (
+          normalizedArtist.includes(normalizedQuery) ||
+          normalizedQuery.includes(normalizedArtist)
+        ) {
+          metadataScore = 84;
+        } else if (
+          normalizedAlbum &&
+          (normalizedAlbum.includes(normalizedQuery) ||
+            normalizedQuery.includes(normalizedAlbum))
+        ) {
+          metadataScore = 78;
+        } else if (queryTokens.length >= 2) {
+          const titleTokens = lyricsTokens(title, { meaningfulOnly: true });
+          const artistTokens = lyricsTokens(artist, { meaningfulOnly: true });
+          const allMetadataTokens = [...titleTokens, ...artistTokens];
+
+          const matchedTokens = queryTokens.filter((token) =>
+            allMetadataTokens.some((candidate) => tokenSimilarity(token, candidate) >= 0.82),
+          ).length;
+
+          metadataScore = (matchedTokens / queryTokens.length) * 70;
+        }
+
+        return {
+          ...item,
+          metadataScore,
+          textScore: scoreLyricsMatch(item, query),
+        };
+      })
       .sort((a, b) => {
+        // Точное название/исполнитель всегда важнее случайного совпадения
+        // нескольких слов внутри текста песни.
+        if (b.metadataScore !== a.metadataScore) return b.metadataScore - a.metadataScore;
         if (b.textScore !== a.textScore) return b.textScore - a.textScore;
         if (b.apiHits !== a.apiHits) return b.apiHits - a.apiHits;
+        if (Number(b.directHit) !== Number(a.directHit)) {
+          return Number(b.directHit) - Number(a.directHit);
+        }
         return String(a.trackName || "").localeCompare(String(b.trackName || ""));
       })
       .slice(0, 20)
-      .map(({ apiHits, textScore, ...item }) => item);
+      .map(({ apiHits, directHit, metadataScore, textScore, ...item }) => item);
 
     if (ranked.length === 0) {
       return res.json([]);
