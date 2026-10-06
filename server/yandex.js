@@ -93,7 +93,7 @@ ${trimmed}`,
     : "";
 
   if (!content) {
-    return { artist: "", title: "", confidence: 0 };
+    return { artist: "", title: "", confidence: 0, raw: content };
   }
 
   // Yandex иногда оборачивает короткий ответ в markdown/кавычки.
@@ -109,7 +109,7 @@ ${trimmed}`,
   // Ожидаем единственный разделитель " - ".
   const separatorIndex = cleaned.indexOf(" - ");
   if (separatorIndex <= 0 || separatorIndex >= cleaned.length - 3) {
-    return { artist: "", title: "", confidence: 0 };
+    return { artist: "", title: "", confidence: 0, raw: cleaned };
   }
 
   const artist = cleaned.slice(0, separatorIndex).trim();
@@ -123,6 +123,7 @@ ${trimmed}`,
     artist,
     title,
     confidence: 1,
+    raw: cleaned,
   };
 }
 
