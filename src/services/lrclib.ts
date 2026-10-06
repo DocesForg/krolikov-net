@@ -1,4 +1,4 @@
-import type { Lyrics } from "../types/music";
+import type { Lyrics, LyricsSearchResult } from "../types/music";
 
 interface LrcLibItem {
   trackName: string;
@@ -17,7 +17,7 @@ interface LrcLibDebugResponse {
 }
 
 export class LrcLibLyricsService {
-  async searchLyrics(query: string): Promise<Lyrics[]> {
+  async searchLyrics(query: string): Promise<LyricsSearchResult> {
     const trimmed = query.trim();
 
     if (!trimmed) {
@@ -37,7 +37,7 @@ export class LrcLibLyricsService {
 
       const data = await response.json() as
         | LrcLibItem[]
-        | LrcLibDebugResponse;
+        | LrcLibDebugResponse & {\n            yandex?: LyricsSearchResult["yandex"];\n          };
 
       if (!response.ok) {
         throw new Error(
