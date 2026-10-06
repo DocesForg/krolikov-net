@@ -1,40 +1,162 @@
-const ENDPOINT = "https://searchapi.api.cloud.yandex.net/v2/gen/search";
+const RESPONSES_ENDPOINT = "https://ai.api.cloud.yandex.net/v1/responses";
+const LEGACY_SEARCH_ENDPOINT = "https://searchapi.api.cloud.yandex.net/v2/gen/search";
 
-function getConfig() {
+function getApiKey() {
   const apiKey = (process.env.YANDEX_API_KEY || "").trim();
-  const folderId = (process.env.YANDEX_FOLDER_ID || "").trim();
-
   if (!apiKey) throw new Error("YANDEX_API_KEY не настроен");
+  return apiKey;
+}
+
+function getAgentId() {
+  const agentId = (process.env.YANDEX_AGENT_ID || "").trim();
+  if (!agentId) throw new Error("YANDEX_AGENT_ID не настроен");
+  return agentId;
+}
+
+function getFolderId() {
+  const folderId = (process.env.YANDEX_FOLDER_ID || "").trim();
   if (!folderId) throw new Error("YANDEX_FOLDER_ID не настроен");
-
-  return { apiKey, folderId };
+  return folderId;
 }
 
-function normalizeSources(value) {
-  if (!Array.isArray(value)) return [];
-
-  return value
-    .map((item) => ({
-      title: typeof item?.title === "string" ? item.title.trim() : "",
-      url: typeof item?.url === "string" ? item.url.trim() : "",
-      used: Boolean(item?.used),
-    }))
-    .filter((item) => item.title && item.url)
-    .slice(0, 10);
-}
-
-async function callYandex(messages) {
-  const { apiKey, folderId } = getConfig();
-
-  const response = await fetch(ENDPOINT, {
+async function callAgent(input) {
+  const response = await fetch(RESPONSES_ENDPOINT, {
     method: "POST",
     headers: {
-      Authorization: `Api-Key ${apiKey}`,
+      Authorization: `Api-Key ${getApiKey()}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      prompt: {
+        id: getAgentId(),
+      },
+      input,
+      store: false,
+      text: {
+        format: {
+          type: "json_schema",
+          name: "track_identification",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              found: { type: "boolean" },
+              artist: { type: "string" },
+              title: { type: "string" },
+              confidence: { type: "number" },
+            },
+            required: ["found", "artist", "title", "confidence"],
+            additionalProperties: false,
+          },
+        },
+      },
+    }),
+    signal: AbortSignal.timeout(45000),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message = data?.error?.message || data?.message;
+    throw new Error(message
+      ? `Yandex Agent: ${message}`
+      : `Yandex Agent HTTP ${response.status}`);
+  }
+
+  return data;
+}
+
+function parseAgentOutput(data) {
+  const outputText = typeof data?.output_text === "string"
+    ? data.output_text.trim()
+    : "";
+
+  let parsed = null;
+
+  if (outputText) {
+    try {
+      parsed = JSON.parse(outputText);
+    } catch {
+      const jsonMatch = outputText.match(/\\{[\\s\\S]*\\}/);
+      if (jsonMatch) {
+        try {
+          parsed = JSON.parse(jsonMatch[0]);
+        } catch {
+          parsed = null;
+        }
+      }
+    }
+  }
+
+  if (!parsed && Array.isArray(data?.output)) {
+    for (const item of data.output) {
+      for (const content of Array.isArray(item?.content) ? item.content : []) {
+        if (typeof content?.text !== "string") continue;
+        try {
+          parsed = JSON.parse(content.text);
+          break;
+        } catch {
+          // Продолжаем искать JSON в других частях ответа.
+        }
+      }
+      if (parsed) break;
+    }
+  }
+
+  if (!parsed || typeof parsed !== "object") {
+    return {
+      artist: "",
+      title: "",
+      confidence: 0,
+      raw: outputText,
+    };
+  }
+
+  const artist = typeof parsed.artist === "string" ? parsed.artist.trim() : "";
+  const title = typeof parsed.title === "string" ? parsed.title.trim() : "";
+  const confidence = Number(parsed.confidence);
+
+  return {
+    artist,
+    title,
+    confidence: Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0,
+    found: Boolean(parsed.found),
+    raw: outputText,
+  };
+}
+
+export async function identifyTrackFromLyrics(query) {
+  const trimmed = String(query || "").trim();
+
+  if (!trimmed) throw new Error("Поисковый запрос пуст");
+  if (trimmed.length > 4000) throw new Error("Текст слишком длинный");
+
+  const result = await callAgent(
+    `Определи песню по фрагменту текста ниже.
+
+Верни исполнителя и точное официальное название песни.
+Используй подключённый веб-поиск агента, если он доступен.
+Не угадывай. Если уверенно определить песню нельзя, верни found=false, пустые artist/title и confidence=0.
+
+Фрагмент текста песни:
+${trimmed}`,
+  );
+
+  return parseAgentOutput(result);
+}
+
+// Оставлено для совместимости со старым диагностическим endpoint.
+// Поиск песен через него больше не используется: /api/lyrics/search работает через Yandex Agent.
+async function callLegacyYandex(messages) {
+  const response = await fetch(LEGACY_SEARCH_ENDPOINT, {
+    method: "POST",
+    headers: {
+      Authorization: `Api-Key ${getApiKey()}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
       messages,
-      folderId,
+      folderId: getFolderId(),
       fixMisspell: true,
       enableNrfmDocs: false,
       enableRichStructuredAnswer: true,
@@ -55,122 +177,32 @@ async function callYandex(messages) {
   return Array.isArray(data) ? data[0] : data;
 }
 
-function cleanCandidate(value) {
-  return String(value || "")
-    .replace(/^[-*•\d.)]+\s*/, "")
-    .replace(/^`{1,3}|`{1,3}$/g, "")
-    .replace(/^[\"'«]+|[\"'»]+$/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function parseTrackFromText(content) {
-  const lines = String(content || "")
-    .split(/\r?\n/)
-    .map(cleanCandidate)
-    .filter(Boolean);
-
-  // Сначала ищем строку, которая действительно похожа на
-  // «Исполнитель - Название», даже если Yandex добавил перед ней
-  // пояснение вроде «Вот что удалось найти...».
-  for (const line of lines) {
-    const separatorIndex = line.indexOf(" - ");
-
-    if (separatorIndex <= 0 || separatorIndex >= line.length - 3) {
-      continue;
-    }
-
-    const artist = line.slice(0, separatorIndex).trim();
-    const title = line.slice(separatorIndex + 3).trim();
-
-    // Не принимаем очевидные служебные строки.
-    const lower = line.toLowerCase();
-    if (
-      lower.startsWith("вот что удалось") ||
-      lower.startsWith("результат") ||
-      lower.startsWith("исполнитель") ||
-      lower.startsWith("название")
-    ) {
-      continue;
-    }
-
-    if (artist && title) {
-      return { artist, title, raw: line };
-    }
-  }
-
-  return {
-    artist: "",
-    title: "",
-    raw: lines.join("\n"),
-  };
-}
-
-export async function identifyTrackFromLyrics(query) {
-  const trimmed = String(query || "").trim();
-  if (!trimmed) throw new Error("Поисковый запрос пуст");
-  if (trimmed.length > 4000) throw new Error("Текст слишком длинный");
-
-  const result = await callYandex([{
-    role: "ROLE_USER",
-    content: `Ты находишь существующую песню по фрагменту текста.
-
-Используй веб-поиск Yandex, чтобы определить конкретную песню.
-Нужно установить:
-1. исполнителя или группу;
-2. точное название песни.
-
-Не придумывай песню. Если уверенно определить её нельзя, не угадывай.
-
-Постарайся указать найденные данные отдельной строкой строго в формате:
-ИСПОЛНИТЕЛЬ - НАЗВАНИЕ ПЕСНИ
-
-Не используй формат «Вот что удалось найти».
-Не добавляй к строке с исполнителем и названием источники, ссылки или пояснения.
-
-Текст песни:
-${trimmed}`,
-  }]);
-
-  const content = typeof result?.message?.content === "string"
-    ? result.message.content.trim()
-    : "";
-
-  const parsed = parseTrackFromText(content);
-
-  if (!parsed.artist || !parsed.title) {
-    return {
-      artist: "",
-      title: "",
-      confidence: 0,
-      raw: parsed.raw || content,
-    };
-  }
-
-  return {
-    artist: parsed.artist,
-    title: parsed.title,
-    confidence: 1,
-    raw: parsed.raw,
-  };
-}
-
 export async function generativeSearch(query) {
   const trimmed = String(query || "").trim();
   if (!trimmed) throw new Error("Поисковый запрос пуст");
   if (trimmed.length > 4000) throw new Error("Запрос слишком длинный");
 
-  const result = await callYandex([{
+  const result = await callLegacyYandex([{
     content: trimmed,
     role: "ROLE_USER",
   }]);
+
   const content = typeof result?.message?.content === "string"
     ? result.message.content.trim()
     : "";
 
   return {
     answer: content,
-    sources: normalizeSources(result?.sources),
+    sources: Array.isArray(result?.sources)
+      ? result.sources
+        .map((item) => ({
+          title: typeof item?.title === "string" ? item.title.trim() : "",
+          url: typeof item?.url === "string" ? item.url.trim() : "",
+          used: Boolean(item?.used),
+        }))
+        .filter((item) => item.title && item.url)
+        .slice(0, 10)
+      : [],
     searchQueries: Array.isArray(result?.searchQueries)
       ? result.searchQueries
         .map((item) => typeof item?.text === "string" ? item.text.trim() : "")
