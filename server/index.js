@@ -617,8 +617,12 @@ app.get("/api/lyrics/search", async (req, res) => {
     // и точное название, после чего найденная песня отправляется в LRCLIB.
     const identified = await identifyTrackFromLyrics(query);
 
+    // Возвращаем фактический ответ Yandex для диагностики.
     if (!identified.artist || !identified.title || identified.confidence < 0.45) {
-      return res.json([]);
+      return res.json({
+        results: [],
+        yandexAnswer: identified.raw || "",
+      });
     }
 
     const exact = await getLrcLibTrack(identified.artist, identified.title);
@@ -639,7 +643,10 @@ app.get("/api/lyrics/search", async (req, res) => {
       })
       .slice(0, 20);
 
-    return res.json(await enrichLyricsResults(ranked));
+    return res.json({
+      results: await enrichLyricsResults(ranked),
+      yandexAnswer: identified.raw || (identified.artist + " - " + identified.title).trim(),
+    });
   } catch (error) {
     res.status(502).json({
       error: error instanceof Error
