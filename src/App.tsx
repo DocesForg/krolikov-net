@@ -11,8 +11,6 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [recording, setRecording] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const [aiInsight, setAiInsight] = useState<import("./types/music").AiTrackInsight | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
   const [expandedLyrics, setExpandedLyrics] = useState<string | null>(null);
   const [yandexResult, setYandexResult] = useState<LyricsSearchResult["yandex"]>(null);
   const [similarLyrics, setSimilarLyrics] = useState<import("./types/music").Lyrics[]>([]);
@@ -74,14 +72,19 @@ export default function App() {
     }
   };
 
-  const analyzeWithAi = async (source: Track) => {
-    setAiLoading(true);
+  const showTrackLyrics = async (source: Track) => {
+    if (!source.title || loading) return;
+
+    dispatch(startLoading());
     try {
-      setAiInsight(await musicServices.analyzeTrack(source));
+      const result = await musicServices.searchLyrics(source.title);
+      setYandexResult(null);
+      dispatch(setLyrics(result.results));
+      if (result.results.length === 0) {
+        dispatch(setError("Текст этого трека не найден в LRCLIB."));
+      }
     } catch (e) {
-      dispatch(setError(e instanceof Error ? e.message : "Ошибка AI-анализа"));
-    } finally {
-      setAiLoading(false);
+      dispatch(setError(e instanceof Error ? e.message : "Ошибка поиска текста"));
     }
   };
 
@@ -202,22 +205,14 @@ export default function App() {
           {track.timecode && <small>Фрагмент: {track.timecode}</small>}
           <div className="actions">
             <button onClick={() => void findSimilar(track)}>Похожие треки</button>
-            <button onClick={() => void analyzeWithAi(track)} disabled={aiLoading}>
-              {aiLoading ? "AI анализирует…" : "AI-анализ"}
+            <button onClick={() => void showTrackLyrics(track)} disabled={loading}>
+              {loading ? "Ищем текст…" : "Показать текст"}
             </button>
             {track.songUrl && <a href={track.songUrl} target="_blank" rel="noreferrer">Открыть трек ↗</a>}
           </div>
         </div>
       </div>
-      {aiInsight && <div className="ai-card">
-        <div className="section-heading"><span>GEMINI AI</span><h2>AI-анализ трека</h2></div>
-        {aiInsight.summary && <p>{aiInsight.summary}</p>}
-        <div className="ai-tags">
-          {[...aiInsight.genres, ...aiInsight.mood].map((item) => <span key={item}>{item}</span>)}
-        </div>
-        {aiInsight.similarArtists.length > 0 && <p><strong>Похожие исполнители:</strong> {aiInsight.similarArtists.join(", ")}</p>}
-        {aiInsight.recommendations.length > 0 && <ul>{aiInsight.recommendations.map((item, i) => <li key={i}>{item}</li>)}</ul>}
-      </div>}
+
     </section>}
 
     {lyrics.length > 0 && <section className="results">
