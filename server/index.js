@@ -601,8 +601,9 @@ app.get("/api/lyrics/search", async (req, res) => {
       // Yandex и Gemini здесь не используются.
       const results = await searchLrcLib(query);
 
-      return res.json(
-        await enrichLyricsResults(
+      return res.json({
+        yandex: null,
+        results: await enrichLyricsResults(
           results
             .slice(0, 20)
             .map((item) => ({
@@ -610,16 +611,23 @@ app.get("/api/lyrics/search", async (req, res) => {
               textScore: 0,
             })),
         ),
-      );
+      });
     }
 
     // Длинный текст/фрагмент песни: Yandex определяет исполнителя
     // и точное название, после чего найденная песня отправляется в LRCLIB.
     const identified = await identifyTrackFromLyrics(query);
 
-    // Возвращаем фактический ответ Yandex для диагностики.
+    // Yandex и LRCLIB возвращаются раздельно.
+    // Фронтенд может показать их независимо друг от друга.
     if (!identified.artist || !identified.title || identified.confidence < 0.45) {
       return res.json({
+        yandex: {
+          found: Boolean(identified.found),
+          artist: identified.artist || "",
+          title: identified.title || "",
+          confidence: identified.confidence || 0,
+        },
         results: [],
       });
     }
@@ -645,6 +653,12 @@ app.get("/api/lyrics/search", async (req, res) => {
       .slice(0, 20);
 
     return res.json({
+      yandex: {
+        found: Boolean(identified.found),
+        artist,
+        title,
+        confidence: identified.confidence,
+      },
       results: await enrichLyricsResults(ranked),
     });
   } catch (error) {
