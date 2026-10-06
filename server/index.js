@@ -577,7 +577,7 @@ function splitLyricsQuery(query) {
 }
 
 function isDirectLrcLibQuery(query) {
-  const normalized = String(query || "").replace(/\\s+/g, " ").trim();
+  const normalized = String(query || "").replace(/\s+/g, " ").trim();
   if (!normalized) return false;
 
   const tokens = normalized.split(" ").filter(Boolean);
