@@ -8,6 +8,36 @@ interface LrcLibItem {
   artworkUrl?: string | null;
   plainLyrics?: string | null;
   syncedLyrics?: string | null;
+  async searchSimilarLyrics(artist: string, title: string) {
+    const response = await fetch("/api/lyrics/similar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ artist, title }),
+    });
+
+    const data = await response.json() as {
+      error?: string;
+      recommendations?: { artist: string; title: string }[];
+      results?: LrcLibItem[];
+    };
+
+    if (!response.ok) {
+      throw new Error(data.error || `LRCLIB HTTP ${response.status}`);
+    }
+
+    return {
+      recommendations: data.recommendations || [],
+      results: (data.results || []).map((item) => ({
+        track: item.trackName,
+        artist: item.artistName,
+        album: item.albumName ?? item.album ?? null,
+        artworkUrl: item.artworkUrl ?? null,
+        plainLyrics: item.plainLyrics,
+        syncedLyrics: item.syncedLyrics,
+        source: "LRCLIB",
+      })),
+    };
+  }
 }
 
 interface LrcLibDebugResponse {
