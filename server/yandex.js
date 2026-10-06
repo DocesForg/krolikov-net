@@ -55,6 +55,57 @@ async function callYandex(messages) {
   return Array.isArray(data) ? data[0] : data;
 }
 
+function cleanCandidate(value) {
+  return String(value || "")
+    .replace(/^[-*•\d.)]+\s*/, "")
+    .replace(/^`{1,3}|`{1,3}$/g, "")
+    .replace(/^[\"'«]+|[\"'»]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseTrackFromText(content) {
+  const lines = String(content || "")
+    .split(/\r?\n/)
+    .map(cleanCandidate)
+    .filter(Boolean);
+
+  // Сначала ищем строку, которая действительно похожа на
+  // «Исполнитель - Название», даже если Yandex добавил перед ней
+  // пояснение вроде «Вот что удалось найти...».
+  for (const line of lines) {
+    const separatorIndex = line.indexOf(" - ");
+
+    if (separatorIndex <= 0 || separatorIndex >= line.length - 3) {
+      continue;
+    }
+
+    const artist = line.slice(0, separatorIndex).trim();
+    const title = line.slice(separatorIndex + 3).trim();
+
+    // Не принимаем очевидные служебные строки.
+    const lower = line.toLowerCase();
+    if (
+      lower.startsWith("вот что удалось") ||
+      lower.startsWith("результат") ||
+      lower.startsWith("исполнитель") ||
+      lower.startsWith("название")
+    ) {
+      continue;
+    }
+
+    if (artist && title) {
+      return { artist, title, raw: line };
+    }
+  }
+
+  return {
+    artist: "",
+    title: "",
+    raw: lines.join("\n"),
+  };
+}
+
 export async function identifyTrackFromLyrics(query) {
   const trimmed = String(query || "").trim();
   if (!trimmed) throw new Error("Поисковый запрос пуст");
@@ -64,25 +115,18 @@ export async function identifyTrackFromLyrics(query) {
     role: "ROLE_USER",
     content: `Ты находишь существующую песню по фрагменту текста.
 
-Используй веб-поиск Yandex, чтобы точно определить песню.
-Тебе нужны только:
-1. название группы или исполнителя;
-2. точное официальное название песни.
+Используй веб-поиск Yandex, чтобы определить конкретную песню.
+Нужно установить:
+1. исполнителя или группу;
+2. точное название песни.
 
-КРИТИЧЕСКИ ВАЖНО:
-- Верни РОВНО ОДНУ строку.
-- Формат ответа строго: ИСПОЛНИТЕЛЬ - НАЗВАНИЕ ПЕСНИ
-- Между исполнителем и названием песни должен быть ровно разделитель " - ".
-- Не добавляй кавычки.
-- Не добавляй JSON.
-- Не добавляй markdown.
-- Не добавляй пояснения.
-- Не добавляй источники, ссылки, confidence или другие данные.
-- Не пиши слова "Исполнитель:", "Название:" и подобные подписи.
-- Если не можешь достоверно определить песню, верни пустую строку.
+Не придумывай песню. Если уверенно определить её нельзя, не угадывай.
 
-Пример правильного ответа:
-The Weeknd - Blinding Lights
+Постарайся указать найденные данные отдельной строкой строго в формате:
+ИСПОЛНИТЕЛЬ - НАЗВАНИЕ ПЕСНИ
+
+Не используй формат «Вот что удалось найти».
+Не добавляй к строке с исполнителем и названием источники, ссылки или пояснения.
 
 Текст песни:
 ${trimmed}`,
@@ -92,38 +136,22 @@ ${trimmed}`,
     ? result.message.content.trim()
     : "";
 
-  if (!content) {
-    return { artist: "", title: "", confidence: 0, raw: content };
-  }
+  const parsed = parseTrackFromText(content);
 
-  // Yandex иногда оборачивает короткий ответ в markdown/кавычки.
-  // Убираем только техническое оформление, не меняя сами данные.
-  const cleaned = content
-    .replace(/^\`\`\`(?:text|txt)?\s*/i, "")
-    .replace(/\s*\`\`\`$/i, "")
-    .replace(/^["'«]+|["'»]+$/g, "")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)[0] || "";
-
-  // Ожидаем единственный разделитель " - ".
-  const separatorIndex = cleaned.indexOf(" - ");
-  if (separatorIndex <= 0 || separatorIndex >= cleaned.length - 3) {
-    return { artist: "", title: "", confidence: 0, raw: cleaned };
-  }
-
-  const artist = cleaned.slice(0, separatorIndex).trim();
-  const title = cleaned.slice(separatorIndex + 3).trim();
-
-  if (!artist || !title) {
-    return { artist: "", title: "", confidence: 0 };
+  if (!parsed.artist || !parsed.title) {
+    return {
+      artist: "",
+      title: "",
+      confidence: 0,
+      raw: parsed.raw || content,
+    };
   }
 
   return {
-    artist,
-    title,
+    artist: parsed.artist,
+    title: parsed.title,
     confidence: 1,
-    raw: cleaned,
+    raw: parsed.raw,
   };
 }
 
