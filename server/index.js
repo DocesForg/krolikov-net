@@ -5,7 +5,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import acoustid from "acoustid";
-import { analyzeTrack, identifyLyrics, recognizeAudio } from "./gemini.js";
+import { analyzeTrack, recognizeAudio } from "./gemini.js";
 import { generativeSearch } from "./yandex.js";
 
 const app = express();
