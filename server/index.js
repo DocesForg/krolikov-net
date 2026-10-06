@@ -621,7 +621,6 @@ app.get("/api/lyrics/search", async (req, res) => {
     if (!identified.artist || !identified.title || identified.confidence < 0.45) {
       return res.json({
         results: [],
-        yandexAnswer: identified.raw || "",
       });
     }
 
