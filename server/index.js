@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import acoustid from "acoustid";
 import { analyzeTrack, recognizeAudio } from "./gemini.js";
-import { findSimilarTracksFromAgent, generativeSearch, identifyTrackFromLyrics } from "./yandex.js";
+import { findSimilarTracksFromAgent, generativeSearch, identifyTrackFromLyrics, recommendTracksByGenre } from "./yandex.js";
 
 const app = express();
 const upload = multer({
@@ -666,6 +666,42 @@ app.get("/api/lyrics/search", async (req, res) => {
       error: error instanceof Error
         ? error.message
         : "Поиск текста временно недоступен. Попробуйте ещё раз.",
+    });
+  }
+});
+
+app.post("/api/lyrics/genre", async (req, res) => {
+  const genre = String(req.body?.genre || "").trim();
+  if (!genre) return res.status(400).json({ error: "Жанр не указан" });
+
+  try {
+    const recommendations = await recommendTracksByGenre(genre);
+    const results = [];
+
+    for (const recommendation of recommendations) {
+      let item = await getLrcLibTrack(recommendation.artist, recommendation.title);
+
+      if (!item) {
+        const fallback = await searchLrcLib(`${recommendation.artist} ${recommendation.title}`);
+        item = fallback.find((candidate) =>
+          String(candidate?.artistName || "").toLowerCase() === recommendation.artist.toLowerCase()
+          && String(candidate?.trackName || "").toLowerCase() === recommendation.title.toLowerCase()
+        ) || null;
+      }
+
+      if (item) {
+        results.push(item);
+      }
+    }
+
+    return res.json({
+      genre,
+      recommendations,
+      results: await enrichLyricsResults(results),
+    });
+  } catch (error) {
+    return res.status(502).json({
+      error: error instanceof Error ? error.message : "Не удалось подобрать песни по жанру",
     });
   }
 });
