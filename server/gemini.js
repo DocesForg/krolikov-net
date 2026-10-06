@@ -99,3 +99,38 @@ export async function analyzeTrack(track) {
     })).filter((item) => item.artist && item.title) : [],
   };
 }
+export async function identifyLyrics(query) {
+  const client = getClient();
+
+  const response = await client.models.generateContent({
+    model: getConfig().model,
+    contents: `Определи песню по фрагменту текста ниже.
+
+Верни строго JSON:
+{
+  "artist": "исполнитель",
+  "title": "название",
+  "confidence": 0.0
+}
+
+Правила:
+- Определи именно существующую песню, если узнаёшь её.
+- Не придумывай исполнителя или название.
+- confidence — число от 0 до 1.
+- Если определить не удалось, верни пустые artist/title и confidence 0.
+
+Фрагмент:
+${query}`,
+    config: {
+      responseMimeType: "application/json",
+      temperature: 0.1,
+    },
+  });
+
+  const parsed = JSON.parse(response.text?.trim() || "{}");
+  return {
+    artist: typeof parsed.artist === "string" ? parsed.artist.trim() : "",
+    title: typeof parsed.title === "string" ? parsed.title.trim() : "",
+    confidence: Number.isFinite(Number(parsed.confidence)) ? Number(parsed.confidence) : 0,
+  };
+}
