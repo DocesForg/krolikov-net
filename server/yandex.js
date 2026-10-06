@@ -226,7 +226,7 @@ export async function recommendTracksByGenre(genre) {
   if (!value) throw new Error("Жанр не указан");
   if (value.length > 200) throw new Error("Название жанра слишком длинное");
 
-  const input = `посоветуй песню в жанре "${value}"`;
+  const input = `посоветуй песню в жанре "${value}". Подбери несколько песен этого жанра и верни их списком в формате "Исполнитель - Название".`;
   const response = await getClient().responses.create({
     prompt: {
       id: YANDEX_AGENT_ID,
