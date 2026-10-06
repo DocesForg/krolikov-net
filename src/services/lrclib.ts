@@ -10,10 +10,19 @@ interface LrcLibItem {
   syncedLyrics?: string | null;
 }
 
+interface LrcLibDebugResponse {
+  error?: string;
+  results?: LrcLibItem[];
+  yandexAnswer?: string;
+}
+
 export class LrcLibLyricsService {
   async searchLyrics(query: string): Promise<Lyrics[]> {
     const trimmed = query.trim();
-    if (!trimmed) return [];
+
+    if (!trimmed) {
+      return [];
+    }
 
     const url = new URL("/api/lyrics/search", window.location.origin);
     url.searchParams.set("q", trimmed);
@@ -22,20 +31,36 @@ export class LrcLibLyricsService {
     const timeout = window.setTimeout(() => controller.abort(), 20000);
 
     try {
-      const response = await fetch(url, { signal: controller.signal });
-      const data = await response.json() as LrcLibItem[] | { error?: string; results?: LrcLibItem[]; yandexAnswer?: string };
+      const response = await fetch(url, {
+        signal: controller.signal,
+      });
+
+      const data = await response.json() as
+        | LrcLibItem[]
+        | LrcLibDebugResponse;
 
       if (!response.ok) {
         throw new Error(
-          typeof data === "object" && data && "error" in data && data.error
+          typeof data === "object" &&
+          data &&
+          "error" in data &&
+          data.error
             ? data.error
             : `LRCLIB HTTP ${response.status}`,
         );
       }
 
-      const results = Array.isArray(data) ? data : (Array.isArray(data.results) ? data.results : []);
+      const results = Array.isArray(data)
+        ? data
+        : Array.isArray(data.results)
+          ? data.results
+          : [];
 
-      if (!Array.isArray(data) && data.yandexAnswer) {\n        throw new Error("Yandex ответил: " + data.yandexAnswer);\n      }\n\n      return results.map((item) => ({
+      if (!Array.isArray(data) && data.yandexAnswer) {
+        throw new Error(`Yandex ответил: ${data.yandexAnswer}`);
+      }
+
+      return results.map((item) => ({
         track: item.trackName,
         artist: item.artistName,
         album: item.albumName ?? item.album ?? null,
@@ -45,9 +70,16 @@ export class LrcLibLyricsService {
         source: "LRCLIB",
       }));
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
-        throw new Error("Поиск текста занял слишком много времени. LRCLIB сейчас отвечает медленно.");
+      if (
+        error instanceof DOMException &&
+        error.name === "AbortError"
+      ) {
+        throw new Error(
+          "Поиск текста занял слишком много времени. " +
+          "LRCLIB сейчас отвечает медленно.",
+        );
       }
+
       throw error;
     } finally {
       window.clearTimeout(timeout);
