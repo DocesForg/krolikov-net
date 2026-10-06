@@ -44,3 +44,18 @@ export interface MusicServices {
   similarTracks(track: Track): Promise<Track[]>;
   analyzeTrack(track: Track): Promise<AiTrackInsight>;
 }
+
+
+export interface YandexSearchSource {
+  title: string;
+  url: string;
+  used: boolean;
+}
+
+export interface YandexGenerativeResult {
+  answer: string;
+  sources: YandexSearchSource[];
+  searchQueries: string[];
+  fixedQuery?: string | null;
+  rejected: boolean;
+}
