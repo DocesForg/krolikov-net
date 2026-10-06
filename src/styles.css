@@ -120,3 +120,8 @@ body:after{z-index:0;inset:-25%;background:radial-gradient(circle at 50% 15%,rgb
 .source-list small{color:#777e8b}
 .source-used{border-color:rgba(180,150,255,.28)!important}
 @media(max-width:640px){.source-list a{grid-template-columns:28px 1fr}.source-list small{grid-column:2}}
+
+
+.genre-search{margin-top:0}
+.genre-recommendations{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}
+.genre-recommendations span{padding:8px 11px;border:1px solid rgba(255,255,255,.09);border-radius:999px;background:rgba(255,255,255,.035);color:#aeb4bf;font-size:13px}
