@@ -3,8 +3,7 @@ import type { ChangeEvent, DragEvent } from "react";
 import { musicServices } from "./services/music";
 import { useAppDispatch, useAppSelector } from "./store/hooks";
 import { setError, setLyrics, setSimilar, setTrack, startLoading } from "./store/musicSlice";
-import type { Track, YandexGenerativeResult } from "./types/music";
-import { yandexGenerativeSearch } from "./services/music";
+import type { Track } from "./types/music";
 
 export default function App() {
   const dispatch = useAppDispatch();
@@ -15,9 +14,6 @@ export default function App() {
   const [aiInsight, setAiInsight] = useState<import("./types/music").AiTrackInsight | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [expandedLyrics, setExpandedLyrics] = useState<string | null>(null);
-  const [yandexQuery, setYandexQuery] = useState("");
-  const [yandexResult, setYandexResult] = useState<YandexGenerativeResult | null>(null);
-  const [yandexLoading, setYandexLoading] = useState(false);
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
 
@@ -47,19 +43,6 @@ export default function App() {
       dispatch(setLyrics(results));
       if (results.length === 0) dispatch(setError("По вашему запросу ничего не найдено в LRCLIB."));
     } catch (e) { dispatch(setError(e instanceof Error ? e.message : "Ошибка поиска текста")); }
-  };
-
-  const searchWithYandex = async () => {
-    if (!yandexQuery.trim() || yandexLoading) return;
-    setYandexLoading(true);
-    setYandexResult(null);
-    try {
-      setYandexResult(await yandexGenerativeSearch(yandexQuery));
-    } catch (e) {
-      dispatch(setError(e instanceof Error ? e.message : "Ошибка Yandex AI"));
-    } finally {
-      setYandexLoading(false);
-    }
   };
 
   const analyzeWithAi = async (source: Track) => {
@@ -136,46 +119,10 @@ export default function App() {
         <button type="submit" disabled={loading}>{loading ? "Ищем…" : "Найти"}</button>
       </form>
 
-      <div className="divider"><span>или веб-поиск с Yandex AI</span></div>
-      <form className="search yandex-search" onSubmit={(e) => { e.preventDefault(); void searchWithYandex(); }}>
-        <textarea
-          value={yandexQuery}
-          onChange={(e) => setYandexQuery(e.target.value)}
-          placeholder={"Задай вопрос — Yandex AI найдёт информацию в интернете и сформирует ответ…"}
-          rows={3}
-          aria-label="Поиск с Yandex AI"
-        />
-        <button type="submit" disabled={yandexLoading}>
-          {yandexLoading ? "Ищет…" : "Yandex AI"}
-        </button>
-      </form>
     </section>
 
     {error && <section className="message error">{error}</section>}
 
-    {yandexResult && <section className="results yandex-results">
-      <div className="ai-card yandex-card">
-        <div className="section-heading"><span>YANDEX SEARCH API</span><h2>Генеративный поиск</h2></div>
-        {yandexResult.fixedQuery && yandexResult.fixedQuery !== yandexQuery.trim() &&
-          <p className="yandex-fixed">Исправленный запрос: <strong>{yandexResult.fixedQuery}</strong></p>}
-        {yandexResult.rejected
-          ? <p>Yandex не сформировал ответ на этот запрос.</p>
-          : <div className="yandex-answer">{yandexResult.answer || "Ответ не получен."}</div>}
-
-        {yandexResult.sources.length > 0 && <div className="yandex-sources">
-          <h3>Источники</h3>
-          <div className="source-list">
-            {yandexResult.sources.map((source, i) =>
-              <a key={source.url + i} href={source.url} target="_blank" rel="noreferrer" className={source.used ? "source-used" : ""}>
-                <span>{String(i + 1).padStart(2, "0")}</span>
-                <strong>{source.title}</strong>
-                {source.used && <small>использован в ответе</small>}
-              </a>
-            )}
-          </div>
-        </div>}
-      </div>
-    </section>}
     {loading && <section className="message">Ищем музыку…</section>}
 
     {track && <section className="results">
