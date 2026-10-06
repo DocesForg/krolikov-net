@@ -175,6 +175,77 @@ function parseSimilarTracksOutput(outputText) {
   return results.slice(0, 8);
 }
 
+
+function parseGenreRecommendations(outputText) {
+  const text = typeof outputText === "string" ? outputText.trim() : "";
+  if (!text) return [];
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      try { parsed = JSON.parse(jsonMatch[0]); } catch { parsed = null; }
+    }
+  }
+
+  if (parsed && !Array.isArray(parsed)) {
+    parsed = parsed.songs || parsed.tracks || parsed.recommendations || parsed.similarTracks || null;
+  }
+
+  if (Array.isArray(parsed)) {
+    return parsed
+      .map((item) => ({
+        artist: String(item?.artist || item?.artistName || "").trim(),
+        title: String(item?.title || item?.track || item?.trackName || "").trim(),
+      }))
+      .filter((item) => item.artist && item.title)
+      .slice(0, 8);
+  }
+
+  const results = [];
+  for (const line of text.split(/\r?\n/)) {
+    const clean = line
+      .replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "")
+      .replace(/^["“”]|["“”]$/g, "")
+      .trim();
+    const match = clean.match(/^(.+?)\s+[-–—]\s+(.+?)$/);
+    if (match) {
+      const artist = match[1].trim();
+      const title = match[2].trim();
+      if (artist && title) results.push({ artist, title });
+    }
+  }
+
+  return results.slice(0, 8);
+}
+
+export async function recommendTracksByGenre(genre) {
+  const value = String(genre ?? "").trim();
+  if (!value) throw new Error("Жанр не указан");
+  if (value.length > 200) throw new Error("Название жанра слишком длинное");
+
+  const input = `посоветуй песню в жанре "${value}"`;
+  const response = await getClient().responses.create({
+    prompt: {
+      id: YANDEX_AGENT_ID,
+    },
+    input,
+    tools: [
+      {
+        type: "web_search",
+        filters: {
+          allowed_domains: [],
+        },
+        search_context_size: "low",
+      },
+    ],
+  });
+
+  return parseGenreRecommendations(response.output_text);
+}
+
 export async function findSimilarTracksFromAgent(artist, title) {
   const input = `Найди похожие треки на "${title}"`;
   const response = await getClient().responses.create({
