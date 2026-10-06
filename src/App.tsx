@@ -88,7 +88,6 @@ export default function App() {
   return <main className="app-shell">
     <header className="topbar">
       <div className="brand"><img className="brand-mark" src="/krolikov-logo.png" alt="" aria-hidden="true" /><span>krolikov.net</span></div>
-      <span className="status">MUSIC SEARCH</span>
     </header>
 
     <section className="hero">
