@@ -37,10 +37,20 @@ export interface AiTrackInsight {
 
 export interface MusicRecognition { track: Track | null; }
 
+export interface LyricsSearchResult {
+  yandex: {
+    found: boolean;
+    artist: string;
+    title: string;
+    confidence: number;
+  } | null;
+  results: Lyrics[];
+}
+
 export interface MusicServices {
   recognize(file: File): Promise<MusicRecognition>;
   recognizeFromMicrophone(file: File): Promise<MusicRecognition>;
-  searchLyrics(query: string): Promise<Lyrics[]>;
+  searchLyrics(query: string): Promise<LyricsSearchResult>;
   similarTracks(track: Track): Promise<Track[]>;
   analyzeTrack(track: Track): Promise<AiTrackInsight>;
 }
