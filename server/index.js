@@ -688,7 +688,7 @@ function normalizePreviewText(value) {
   return String(value || "")
     .normalize("NFKD")
     .toLowerCase()
-    .replace(/[\\u0300-\\u036f]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 }
@@ -742,7 +742,7 @@ async function findTrackPreview(artist, title) {
       ? {
           artist,
           title,
-          previewUrl: String(best.previewUrl).replace(/^http:\\/\\//i, "https://"),
+          previewUrl: String(best.previewUrl).replace(/^http:/i, "https:"),
           trackUrl: String(best.trackViewUrl).replace(/^http:\\/\\//i, "https://"),
         }
       : empty;
