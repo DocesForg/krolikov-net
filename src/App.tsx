@@ -71,12 +71,9 @@ export default function App() {
   const renderPreview = (artist: string, title: string) => {
     const preview = previews[previewKey(artist, title)];
     if (!preview) return null;
-    return <div className="track-preview">
-      <audio controls preload="none" src={preview.previewUrl} aria-label={`Предпрослушивание ${title} — ${artist}`} />
-      <div className="preview-meta">
-        <span>30-секундный фрагмент · предоставлено iTunes</span>
-        <a href={preview.trackUrl} target="_blank" rel="noreferrer">Открыть в iTunes ↗</a>
-      </div>
+    return <div className="preview-meta">
+      <span>Фрагмент предоставлен iTunes</span>
+      <a href={preview.trackUrl} target="_blank" rel="noreferrer">Открыть в iTunes ↗</a>
     </div>;
   };
 
