@@ -27,16 +27,16 @@ function ArtworkPreview({ src, alt, previewUrl }: { src?: string | null; alt: st
   };
 
   return <div className={`artwork-preview ${src ? "" : "artwork-placeholder"}`}>
-    {src ? <img src={src} alt={alt} className="cover" /> : <div className="cover placeholder" aria-hidden="true">♪</div>}
+    {src ? <img src={src} crossOrigin="anonymous" alt={alt} className="cover" /> : <div className="cover placeholder" aria-hidden="true">♪</div>}
     {previewUrl && <>
       <audio ref={audioRef} src={previewUrl} preload="none" onEnded={() => setPlaying(false)}
         onPause={() => {
           setPlaying(false);
-          window.dispatchEvent(new CustomEvent("krolikov:playback", { detail: { playing: false, src, alt } }));
+          window.dispatchEvent(new CustomEvent("krolikov:playback", { detail: { playing: false, src, alt, audio: audioRef.current } }));
         }}
         onPlay={() => {
           setPlaying(true);
-          window.dispatchEvent(new CustomEvent("krolikov:playback", { detail: { playing: true, src, alt } }));
+          window.dispatchEvent(new CustomEvent("krolikov:playback", { detail: { playing: true, src, alt, audio: audioRef.current } }));
         }} />
       <button type="button" className="artwork-play" onClick={() => void togglePlayback()} aria-label={playing ? `Поставить на паузу: ${alt}` : `Прослушать фрагмент: ${alt}`} title={playing ? "Пауза" : "Слушать 30 секунд"}>
         {playing ? <span className="pause-icon" aria-hidden="true">Ⅱ</span> : <span className="play-icon" aria-hidden="true">▶</span>}
@@ -65,39 +65,111 @@ export default function App() {
   const [ambientColors, setAmbientColors] = useState<[string, string, string]>(["#7655ff", "#00b9d6", "#ec4d9b"]);
 
   useEffect(() => {
-    const handlePlayback = (event: Event) => {
-      const detail = (event as CustomEvent<{ playing: boolean; src?: string | null; alt?: string }>).detail;
+    let audioContext: AudioContext | null = null;
+    let animationFrame = 0;
+    let activeAnalyser: AnalyserNode | null = null;
+    let activeAudio: HTMLAudioElement | null = null;
+    const audioNodes = new WeakMap<HTMLAudioElement, AnalyserNode>();
+    const root = document.documentElement;
+
+    const setEnergy = (energy: number, bass: number) => {
+      const e = Math.max(0, Math.min(1, energy));
+      const b = Math.max(0, Math.min(1, bass));
+      root.style.setProperty("--audio-energy", e.toFixed(3));
+      root.style.setProperty("--audio-bass", b.toFixed(3));
+      root.style.setProperty("--ray-scale", (1 + e * 0.16 + b * 0.1).toFixed(3));
+      root.style.setProperty("--ray-opacity", (0.68 + e * 0.3).toFixed(3));
+      root.style.setProperty("--glow-scale", (1 + e * 0.12 + b * 0.14).toFixed(3));
+    };
+    const stopAnimation = () => {
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      animationFrame = 0;
+      activeAnalyser = null;
+      activeAudio = null;
+      setEnergy(0, 0);
+    };
+    const animate = () => {
+      if (!activeAnalyser || !activeAudio || activeAudio.paused) {
+        stopAnimation();
+        return;
+      }
+      const data = new Uint8Array(activeAnalyser.frequencyBinCount);
+      activeAnalyser.getByteFrequencyData(data);
+      const bassEnd = Math.max(1, Math.floor(data.length * 0.12));
+      let bassSum = 0, total = 0;
+      for (let i = 0; i < data.length; i++) total += data[i];
+      for (let i = 0; i < bassEnd; i++) bassSum += data[i];
+      setEnergy(total / Math.max(1, data.length) / 255, bassSum / bassEnd / 255);
+      animationFrame = window.requestAnimationFrame(animate);
+    };
+    const handlePlayback = async (event: Event) => {
+      const detail = (event as CustomEvent<{playing:boolean;src?:string|null;alt?:string;audio?:HTMLAudioElement|null}>).detail;
       setIsPreviewPlaying(detail.playing);
-      if (!detail.playing) return;
+      if (!detail.playing) {
+        if (detail.audio === activeAudio || !detail.audio) stopAnimation();
+        return;
+      }
       const artwork = Array.from(document.querySelectorAll<HTMLImageElement>(".artwork-preview img"))
-        .find((img) => img.alt === detail.alt && img.complete && img.naturalWidth > 0);
-      if (!artwork) return;
-      try {
-        const canvas = document.createElement("canvas");
-        canvas.width = canvas.height = 12;
-        const context = canvas.getContext("2d", { willReadFrequently: true });
-        if (!context) return;
-        context.drawImage(artwork, 0, 0, 12, 12);
-        const pixels = context.getImageData(0, 0, 12, 12).data;
-        const buckets = Array.from({ length: 3 }, () => ({ r: 0, g: 0, b: 0, n: 0 }));
-        for (let i = 0; i < pixels.length; i += 4) {
-          const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
-          const brightness = (r + g + b) / 3;
-          if (brightness < 22 || brightness > 242) continue;
-          const bucket = Math.abs(r - g) + Math.abs(g - b) > 90 ? (r > b ? 0 : 2) : 1;
-          buckets[bucket].r += r; buckets[bucket].g += g; buckets[bucket].b += b; buckets[bucket].n++;
+        .find((img) => (detail.src && (img.currentSrc === detail.src || img.src === detail.src)) ||
+          (detail.alt && img.alt === detail.alt && img.complete && img.naturalWidth > 0));
+      if (artwork?.complete && artwork.naturalWidth > 0) {
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = canvas.height = 16;
+          const context = canvas.getContext("2d", {willReadFrequently:true});
+          if (context) {
+            context.drawImage(artwork, 0, 0, 16, 16);
+            const pixels = context.getImageData(0, 0, 16, 16).data;
+            const buckets = Array.from({length:3},()=>({r:0,g:0,b:0,n:0}));
+            for(let i=0;i<pixels.length;i+=4){
+              const r=pixels[i],g=pixels[i+1],b=pixels[i+2];
+              if(pixels[i+3]<100||Math.max(r,g,b)<24||Math.min(r,g,b)>238) continue;
+              const bucket=Math.max(r,g,b)-Math.min(r,g,b)<35?1:(r>=b?0:2);
+              buckets[bucket].r+=r;buckets[bucket].g+=g;buckets[bucket].b+=b;buckets[bucket].n++;
+            }
+            const colors=buckets.filter(x=>x.n).map(x=>{
+              const values=[x.r,x.g,x.b].map(sum=>Math.round(sum/x.n));
+              return "#"+values.map(v=>v.toString(16).padStart(2,"0")).join("");
+            });
+            if(colors.length) setAmbientColors([colors[0],colors[1]??colors[0],colors[2]??colors[0]] as [string,string,string]);
+          }
+        } catch {
+          // If the image host blocks canvas sampling, keep the fallback palette.
         }
-        const colors = buckets.filter((bucket) => bucket.n).map((bucket) => {
-          const values = [bucket.r, bucket.g, bucket.b].map((sum) => Math.round(sum / bucket.n));
-          return "#" + values.map((value) => value.toString(16).padStart(2, "0")).join("");
-        });
-        if (colors.length) setAmbientColors([colors[0], colors[1] ?? colors[0], colors[2] ?? colors[0]] as [string, string, string]);
+      }
+      const audio=detail.audio;
+      if(!audio) return;
+      try {
+        audioContext ??= new AudioContext();
+        if(audioContext.state==="suspended") await audioContext.resume();
+        let analyser=audioNodes.get(audio);
+        if(!analyser){
+          const source=audioContext.createMediaElementSource(audio);
+          analyser=audioContext.createAnalyser();
+          analyser.fftSize=256;
+          analyser.smoothingTimeConstant=0.78;
+          source.connect(analyser);
+          analyser.connect(audioContext.destination);
+          audioNodes.set(audio,analyser);
+        }
+        if(animationFrame) window.cancelAnimationFrame(animationFrame);
+        activeAudio=audio;
+        activeAnalyser=analyser;
+        animationFrame=window.requestAnimationFrame(animate);
       } catch {
-        // Some image hosts block canvas pixel access; playback still works with the existing palette.
+        // Audio playback still works if browser audio analysis is unavailable.
       }
     };
-    window.addEventListener("krolikov:playback", handlePlayback);
-    return () => window.removeEventListener("krolikov:playback", handlePlayback);
+    window.addEventListener("krolikov:playback",handlePlayback);
+    return ()=>{
+      window.removeEventListener("krolikov:playback",handlePlayback);
+      if(animationFrame) window.cancelAnimationFrame(animationFrame);
+      root.style.removeProperty("--audio-energy");
+      root.style.removeProperty("--audio-bass");
+      root.style.removeProperty("--ray-scale");
+      root.style.removeProperty("--ray-opacity");
+      root.style.removeProperty("--glow-scale");
+    };
   }, []);
 
   useEffect(() => {
@@ -271,9 +343,6 @@ export default function App() {
   const onInput = (e: ChangeEvent<HTMLInputElement>) => onFile(e.target.files?.[0]);
 
   return <main className={`app-shell ${isPreviewPlaying ? "is-preview-playing" : ""}`}>
-    <div className="ambient-equalizer" aria-hidden="true">
-      {Array.from({ length: 48 }, (_, i) => <span key={i} style={{ "--bar-index": i } as React.CSSProperties} />)}
-    </div>
     <header className="topbar">
       <div className="brand"><img className="brand-mark" src="/krolikov-logo.png" alt="" aria-hidden="true" /><span>krolikov.net</span></div>
     </header>
