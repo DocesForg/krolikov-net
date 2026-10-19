@@ -5,7 +5,8 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import DateTime, Float, Integer, String, Text, create_engine, desc, func
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker\nfrom sqlalchemy import text
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
+from sqlalchemy import text
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
