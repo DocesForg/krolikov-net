@@ -66,6 +66,7 @@ export interface MusicServices {
   searchSimilarLyrics(artist: string, title: string): Promise<SimilarLyricsResult>;
   searchByGenre(genre: string): Promise<GenreLyricsResult>;
   similarTracks(track: Track): Promise<Track[]>;
+  findPreviews(items: Array<{ artist: string; title: string }>): Promise<Array<{ artist: string; title: string; previewUrl: string | null; trackUrl: string | null }>>;
   analyzeTrack(track: Track): Promise<AiTrackInsight>;
 }
 
