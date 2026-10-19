@@ -146,7 +146,11 @@ export default function App() {
 
   const findSimilar = async (source: Track) => {
     dispatch(startLoading());
-    try {\n      const results = await musicServices.similarTracks(source);\n      dispatch(setSimilar(results));\n      requestPreviews(results.map((item) => ({ artist: item.artist, title: item.title })));\n    }
+    try {
+      const results = await musicServices.similarTracks(source);
+      dispatch(setSimilar(results));
+      requestPreviews(results.map((item) => ({ artist: item.artist, title: item.title })));
+    }
     catch (e) { dispatch(setError(e instanceof Error ? e.message : "Ошибка поиска похожих треков")); }
   };
 
