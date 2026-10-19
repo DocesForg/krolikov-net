@@ -5,8 +5,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import acoustid from "acoustid";
-import { analyzeTrack, recognizeAudio } from "./gemini.js";
-import { findSimilarTracksFromAgent, generativeSearch, identifyTrackFromLyrics, recommendTracksByGenre } from "./yandex.js";
+import { spawn } from "node:child_process";
+import { analyzeTrack } from "./gemini.js";
+import { findSimilarTracksFromAgent, generativeSearch, identifyTrackFromLyrics, recommendTracksByGenre, recognizeAudioFromAgent } from "./yandex.js";
 
 const app = express();
 const upload = multer({
@@ -99,24 +100,55 @@ app.use("/api/lyrics/search", (req, _res, next) => {
   next();
 });
 
-app.post("/api/gemini/recognize", memoryUpload.single("file"), async (req, res) => {
+async function convertAudioToMp3(inputBuffer) {
+  return await new Promise((resolve, reject) => {
+    const ffmpeg = spawn("ffmpeg", [
+      "-hide_banner", "-loglevel", "error",
+      "-i", "pipe:0",
+      "-vn", "-codec:a", "libmp3lame", "-b:a", "128k",
+      "-f", "mp3", "pipe:1",
+    ]);
+    const output = [];
+    let errorOutput = "";
+    ffmpeg.stdout.on("data", (chunk) => output.push(chunk));
+    ffmpeg.stderr.on("data", (chunk) => { errorOutput += chunk.toString(); });
+    ffmpeg.on("error", (error) => reject(new Error(`Не удалось запустить конвертацию MP3: ${error.message}`)));
+    ffmpeg.on("close", (code) => {
+      if (code === 0 && output.length) resolve(Buffer.concat(output));
+      else reject(new Error(errorOutput.trim() || "Не удалось преобразовать запись в MP3"));
+    });
+    ffmpeg.stdin.on("error", () => {});
+    ffmpeg.stdin.end(inputBuffer);
+  });
+}
+
+app.post("/api/yandex/recognize", memoryUpload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Аудиофайл не передан" });
 
   try {
-    const result = await recognizeAudio(req.file);
+    // MediaRecorder обычно создаёт WebM/Opus. Конвертируем запись в настоящий MP3
+    // на сервере и передаём агенту именно MP3, а не исходный поток микрофона.
+    const mp3Buffer = await convertAudioToMp3(req.file.buffer);
+    const mp3File = {
+      buffer: mp3Buffer,
+      originalname: "microphone-recording.mp3",
+      mimetype: "audio/mpeg",
+    };
+    const result = await recognizeAudioFromAgent(mp3File);
     const track = result?.found && result?.artist && result?.title
       ? {
           artist: String(result.artist),
           title: String(result.title),
-          album: result.album ? String(result.album) : null,
+          album: null,
           artworkUrl: await findArtwork(String(result.artist), String(result.title)),
-          source: "Gemini Audio AI",
+          source: "Yandex AI Studio Agent",
         }
       : null;
     res.json({ track, confidence: result?.confidence ?? null });
   } catch (error) {
+    console.error("Ошибка распознавания аудио через Yandex Agent:", error);
     res.status(502).json({
-      error: error instanceof Error ? error.message : "Gemini не смог распознать аудио",
+      error: error instanceof Error ? error.message : "Яндекс Агент не смог распознать аудио",
     });
   }
 });
