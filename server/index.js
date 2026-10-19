@@ -808,6 +808,84 @@ app.post("/api/recognize/file", upload.single("file"), async (req, res) => {
   }
 });
 
+const analyticsServiceUrl = (process.env.ANALYTICS_SERVICE_URL || "http://analytics:8000").replace(/\/$/, "");
+
+async function analyticsRequest(endpoint, options = {}) {
+  const response = await fetch(`${analyticsServiceUrl}${endpoint}`, {
+    ...options,
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    signal: AbortSignal.timeout(5000),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(data.detail || data.error || "Сервис музыкальной аналитики недоступен");
+    error.status = response.status;
+    throw error;
+  }
+  return data;
+}
+
+app.post("/api/analytics/events", async (req, res) => {
+  const query = String(req.body?.query || "").trim();
+  if (!query) return res.status(400).json({ error: "Текст запроса не передан" });
+  try {
+    const result = await analyticsRequest("/events", {
+      method: "POST",
+      body: JSON.stringify({
+        query,
+        event_type: String(req.body?.eventType || "search"),
+        artist: req.body?.artist ? String(req.body.artist) : null,
+        title: req.body?.title ? String(req.body.title) : null,
+      }),
+    });
+    res.status(201).json(result);
+  } catch (error) {
+    res.status(503).json({ error: error instanceof Error ? error.message : "Ошибка аналитики" });
+  }
+});
+
+app.get("/api/analytics/history", async (_req, res) => {
+  try {
+    res.json(await analyticsRequest("/history?limit=30"));
+  } catch (error) {
+    res.status(503).json({ error: error instanceof Error ? error.message : "История недоступна" });
+  }
+});
+
+app.post("/api/analytics/tracks", async (req, res) => {
+  const artist = String(req.body?.artist || "").trim();
+  const title = String(req.body?.title || "").trim();
+  if (!artist || !title) return res.status(400).json({ error: "Нужны исполнитель и название трека" });
+  try {
+    const result = await analyticsRequest("/tracks", {
+      method: "POST",
+      body: JSON.stringify({
+        artist,
+        title,
+        album: req.body?.album ? String(req.body.album) : null,
+        lyrics: String(req.body?.lyrics || "").slice(0, 50000),
+        source: String(req.body?.source || "web"),
+      }),
+    });
+    res.status(201).json(result);
+  } catch (error) {
+    res.status(503).json({ error: error instanceof Error ? error.message : "Не удалось сохранить трек" });
+  }
+});
+
+app.post("/api/ml/similar", async (req, res) => {
+  const query = String(req.body?.query || "").trim();
+  if (query.length < 3) return res.status(400).json({ error: "Передайте текст не короче 3 символов" });
+  try {
+    res.json(await analyticsRequest("/similar", {
+      method: "POST",
+      body: JSON.stringify({ query, limit: Number(req.body?.limit || 5) }),
+    }));
+  } catch (error) {
+    res.status(503).json({ error: error instanceof Error ? error.message : "ML-рекомендации недоступны" });
+  }
+});
+
 const distPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../dist");
 app.use(express.static(distPath));
 app.use((req, res) => {
