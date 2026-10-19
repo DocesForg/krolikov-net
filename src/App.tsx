@@ -5,6 +5,8 @@ import { useAppDispatch, useAppSelector } from "./store/hooks";
 import { setError, setLyrics, setSimilar, setTrack, startLoading } from "./store/musicSlice";
 import type { LyricsSearchResult, Track } from "./types/music";
 
+const BASE_AMBIENT_COLORS: [string, string, string] = ["#7655ff", "#00b9d6", "#ec4d9b"];
+
 
 function ArtworkPreview({ src, alt, previewUrl }: { src?: string | null; alt: string; previewUrl?: string }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -62,51 +64,35 @@ export default function App() {
   const [genreLoading, setGenreLoading] = useState(false);
   const [previews, setPreviews] = useState<Record<string, { previewUrl: string; trackUrl: string }>>({});
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
-  const [ambientColors, setAmbientColors] = useState<[string, string, string]>(["#7655ff", "#00b9d6", "#ec4d9b"]);
+  const [ambientColors, setAmbientColors] = useState<[string, string, string]>(BASE_AMBIENT_COLORS);
 
   useEffect(() => {
-    let animationFrame = 0;
     let activeAudio: HTMLAudioElement | null = null;
-    const root = document.documentElement;
 
-    const setEnergy = (energy: number, bass: number) => {
-      const e = Math.max(0, Math.min(1, energy));
-      const b = Math.max(0, Math.min(1, bass));
-      root.style.setProperty("--audio-energy", e.toFixed(3));
-      root.style.setProperty("--audio-bass", b.toFixed(3));
-      root.style.setProperty("--ray-scale", (1 + e * 0.24 + b * 0.14).toFixed(3));
-      root.style.setProperty("--ray-opacity", (0.78 + e * 0.22).toFixed(3));
-      root.style.setProperty("--glow-scale", (1 + e * 0.16 + b * 0.18).toFixed(3));
-    };
-    const stopAnimation = () => {
-      if (animationFrame) window.cancelAnimationFrame(animationFrame);
-      animationFrame = 0;
-      activeAudio = null;
-      setEnergy(0, 0);
-    };
-    const animate = () => {
-      const audio = activeAudio;
-      if (!audio || audio.paused || audio.ended) {
-        stopAnimation();
-        return;
-      }
-      // Keep audio playback on the native media path: cross-origin previews can
-      // become silent when routed through Web Audio without CORS permission.
-      // Pulse the rays in a steady musical beat while the preview is playing.
-      const t = audio.currentTime;
-      const phase = (t * 2.15) % 1;
-      const pulse = Math.pow(Math.max(0, 1 - phase), 3);
-      const secondary = Math.pow(Math.max(0, 1 - ((t * 4.3) % 1)), 5) * 0.35;
-      setEnergy(0.18 + pulse * 0.82, 0.12 + Math.max(pulse, secondary) * 0.88);
-      animationFrame = window.requestAnimationFrame(animate);
-    };
+    const resetPalette = () => setAmbientColors(BASE_AMBIENT_COLORS);
     const handlePlayback = (event: Event) => {
-      const detail = (event as CustomEvent<{playing:boolean;src?:string|null;alt?:string;audio?:HTMLAudioElement|null}>).detail;
-      setIsPreviewPlaying(detail.playing);
+      const detail = (event as CustomEvent<{ playing: boolean; src?: string | null; alt?: string; audio?: HTMLAudioElement | null }>).detail;
+      const audio = detail.audio ?? null;
+
       if (!detail.playing) {
-        if (detail.audio === activeAudio || !detail.audio) stopAnimation();
+        // Ignore delayed pause events from an older preview after another track has started.
+        if (audio && activeAudio && audio !== activeAudio) return;
+        if (!audio || audio === activeAudio) {
+          activeAudio = null;
+          setIsPreviewPlaying(false);
+          resetPalette();
+        }
         return;
       }
+
+      if (!audio) return;
+      activeAudio = audio;
+      setIsPreviewPlaying(true);
+
+      // Only one preview may play at a time.
+      document.querySelectorAll<HTMLAudioElement>(".artwork-preview audio").forEach((otherAudio) => {
+        if (otherAudio !== audio && !otherAudio.paused) otherAudio.pause();
+      });
 
       const artwork = Array.from(document.querySelectorAll<HTMLImageElement>(".artwork-preview img"))
         .find((img) => (detail.src && (img.currentSrc === detail.src || img.src === detail.src)) ||
@@ -124,9 +110,8 @@ export default function App() {
               const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
               if (pixels[i + 3] < 150) continue;
               const max = Math.max(r, g, b), min = Math.min(r, g, b);
-              const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
+              const brightness = r * 0.299 + g * 0.587 + b * 0.114;
               const saturation = max === 0 ? 0 : (max - min) / max;
-              // Ignore black/shadow pixels and prefer bright, saturated artwork colors.
               if (brightness < 72 || max < 95 || (brightness < 105 && saturation < 0.35)) continue;
               const bucket = saturation < 0.22 ? 1 : (r >= g && r >= b ? 0 : (b >= r && b >= g ? 2 : 1));
               const weight = (0.25 + brightness / 255) * (0.35 + saturation);
@@ -136,40 +121,33 @@ export default function App() {
               buckets[bucket].score += weight;
               buckets[bucket].n++;
             }
-            const vivid = buckets.filter(x => x.n && x.score > 0).map(x => {
+            const vivid = buckets.filter((x) => x.n && x.score > 0).map((x) => {
               let rgb = [x.r / x.score, x.g / x.score, x.b / x.score];
               const max = Math.max(...rgb), min = Math.min(...rgb);
               const avg = (max + min) / 2;
-              // Lift dark samples and increase color separation without washing them out.
-              rgb = rgb.map(v => Math.min(255, Math.round(avg + (v - avg) * 1.28 + 28)));
+              rgb = rgb.map((v) => Math.min(255, Math.round(avg + (v - avg) * 1.28 + 28)));
               const lift = Math.max(...rgb);
-              if (lift < 190) rgb = rgb.map(v => Math.min(255, Math.round(v * (190 / Math.max(1, lift)))));
-              return { color: "#" + rgb.map(v => Math.round(v).toString(16).padStart(2, "0")).join(""), score: x.score };
-            }).sort((a, b) => b.score - a.score).map(x => x.color);
+              if (lift < 190) rgb = rgb.map((v) => Math.min(255, Math.round(v * (190 / Math.max(1, lift)))));
+              return { color: "#" + rgb.map((v) => Math.round(v).toString(16).padStart(2, "0")).join(""), score: x.score };
+            }).sort((a, b) => b.score - a.score).map((x) => x.color);
             if (vivid.length) {
               const fallback = ["#8b5cf6", "#22d3ee", "#fb7185"];
-              setAmbientColors([vivid[0] ?? fallback[0], vivid[1] ?? vivid[0] ?? fallback[1], vivid[2] ?? vivid[1] ?? vivid[0] ?? fallback[2]] as [string, string, string]);
+              setAmbientColors([
+                vivid[0] ?? fallback[0],
+                vivid[1] ?? vivid[0] ?? fallback[1],
+                vivid[2] ?? vivid[1] ?? vivid[0] ?? fallback[2],
+              ] as [string, string, string]);
             }
           }
         } catch {
-          // Cross-origin artwork may prohibit pixel sampling; keep the current palette.
+          // If artwork pixels are blocked by CORS, keep the current palette.
         }
       }
-      const audio = detail.audio;
-      if (!audio) return;
-      if (animationFrame) window.cancelAnimationFrame(animationFrame);
-      activeAudio = audio;
-      animationFrame = window.requestAnimationFrame(animate);
     };
+
     window.addEventListener("krolikov:playback", handlePlayback);
     return () => {
       window.removeEventListener("krolikov:playback", handlePlayback);
-      if (animationFrame) window.cancelAnimationFrame(animationFrame);
-      root.style.removeProperty("--audio-energy");
-      root.style.removeProperty("--audio-bass");
-      root.style.removeProperty("--ray-scale");
-      root.style.removeProperty("--ray-opacity");
-      root.style.removeProperty("--glow-scale");
     };
   }, []);
 
