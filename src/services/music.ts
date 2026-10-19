@@ -52,11 +52,14 @@ export const musicServices: MusicServices = {
     const data = await response.json() as {
       error?: string;
       results?: Array<{
-        track: string;
-        artist: string;
+        track?: string;
+        artist?: string;
+        trackName?: string;
+        artistName?: string;
         album?: string | null;
+        albumName?: string | null;
         artworkUrl?: string | null;
-        source: string;
+        source?: string;
       }>;
     };
 
@@ -64,13 +67,18 @@ export const musicServices: MusicServices = {
       throw new Error(data.error || "Не удалось найти похожие треки");
     }
 
-    return (data.results || []).map((item) => ({
-      artist: item.artist,
-      title: item.track,
-      album: item.album ?? null,
-      artworkUrl: item.artworkUrl ?? null,
-      source: item.source || "Yandex Agent + LRCLIB",
-    }));
+    // The similar endpoint returns raw LRCLIB fields (artistName/trackName),
+    // while some service responses already use artist/track. Normalize both
+    // shapes before rendering so undefined names cannot crash previewKey().
+    return (data.results || [])
+      .map((item) => ({
+        artist: String(item.artist ?? item.artistName ?? "").trim(),
+        title: String(item.track ?? item.trackName ?? "").trim(),
+        album: item.album ?? item.albumName ?? null,
+        artworkUrl: item.artworkUrl ?? null,
+        source: item.source || "Yandex Agent + LRCLIB",
+      }))
+      .filter((item) => item.artist.length > 0 && item.title.length > 0);
   },
   findPreviews,
   analyzeTrack: (track) => ai.analyzeTrack(track),
