@@ -61,6 +61,7 @@ export default function App() {
   const [yandexResult, setYandexResult] = useState<LyricsSearchResult["yandex"]>(null);
   const [similarLyrics, setSimilarLyrics] = useState<import("./types/music").Lyrics[]>([]);
   const [similarLyricsLoading, setSimilarLyricsLoading] = useState(false);
+  const [similarTracksLoading, setSimilarTracksLoading] = useState(false);
   const [genre, setGenre] = useState("");
   const [genreLyrics, setGenreLyrics] = useState<import("./types/music").Lyrics[]>([]);
   const [genreRecommendations, setGenreRecommendations] = useState<{ artist: string; title: string }[]>([]);
@@ -306,13 +307,16 @@ export default function App() {
   };
 
   const findSimilar = async (source: Track) => {
-    dispatch(startLoading());
+    if (similarTracksLoading) return;
+    setSimilarTracksLoading(true);
     try {
       const results = await musicServices.similarTracks(source);
       dispatch(setSimilar(results));
       requestPreviews(results.map((item) => ({ artist: item.artist, title: item.title })));
+      if (results.length === 0) dispatch(setError("Похожие треки не найдены."));
     }
     catch (e) { dispatch(setError(e instanceof Error ? e.message : "Ошибка поиска похожих треков")); }
+    finally { setSimilarTracksLoading(false); }
   };
 
   const startRecording = async () => {
@@ -412,8 +416,8 @@ export default function App() {
           {track.timecode && <small>Фрагмент: {track.timecode}</small>}
           {renderPreview(track.artist, track.title)}
           <div className="actions">
-            <button onClick={() => void findSimilar(track)}>Похожие треки</button>
-            <button onClick={() => void showTrackLyrics(track)} disabled={loading}>
+            <button type="button" onClick={() => void findSimilar(track)} disabled={similarTracksLoading}>{similarTracksLoading ? "Ищем похожие…" : "Похожие треки"}</button>
+            <button type="button" onClick={() => void showTrackLyrics(track)} disabled={loading}>
               {loading ? "Ищем текст…" : "Показать текст"}
             </button>
             {track.songUrl && <a href={track.songUrl} target="_blank" rel="noreferrer">Открыть трек ↗</a>}
