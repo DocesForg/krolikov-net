@@ -72,6 +72,7 @@ export default function App() {
       const result = await musicServices.searchByGenre(value);
       setGenreRecommendations(result.recommendations);
       setGenreLyrics(result.results);
+      void musicServices.loadArtwork(result.results).then(setGenreLyrics);
       if (result.results.length === 0) {
         dispatch(setError("Yandex подобрал песни, но тексты для них не найдены в LRCLIB."));
       }
@@ -104,6 +105,7 @@ export default function App() {
     try {
       const result = await musicServices.searchSimilarLyrics(item.artist, item.track);
       setSimilarLyrics(result.results);
+      void musicServices.loadArtwork(result.results).then(setSimilarLyrics);
       if (result.results.length === 0) {
         dispatch(setError("Похожие треки найдены, но тексты для них не найдены в LRCLIB."));
       }
