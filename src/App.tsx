@@ -19,6 +19,34 @@ export default function App() {
   const [genreLyrics, setGenreLyrics] = useState<import("./types/music").Lyrics[]>([]);
   const [genreRecommendations, setGenreRecommendations] = useState<{ artist: string; title: string }[]>([]);
   const [genreLoading, setGenreLoading] = useState(false);
+  const [previews, setPreviews] = useState<Record<string, { previewUrl: string; trackUrl: string }>>({});
+  const previewKey = (artist: string, title: string) => `${artist.trim().toLocaleLowerCase()}::${title.trim().toLocaleLowerCase()}`;
+  const requestPreviews = (items: Array<{ artist: string; title: string }>) => {
+    if (!items.length) return;
+    void musicServices.findPreviews(items).then((found) => {
+      setPreviews((current) => {
+        const next = { ...current };
+        for (const item of found) {
+          if (item.previewUrl && item.trackUrl) {
+            next[previewKey(item.artist, item.title)] = { previewUrl: item.previewUrl, trackUrl: item.trackUrl };
+          }
+        }
+        return next;
+      });
+    });
+  };
+  const renderPreview = (artist: string, title: string) => {
+    const preview = previews[previewKey(artist, title)];
+    if (!preview) return null;
+    return <div className="track-preview">
+      <audio controls preload="none" src={preview.previewUrl} aria-label={`Предпрослушивание ${title} — ${artist}`} />
+      <div className="preview-meta">
+        <span>30-секундный фрагмент · предоставлено iTunes</span>
+        <a href={preview.trackUrl} target="_blank" rel="noreferrer">Открыть в iTunes ↗</a>
+      </div>
+    </div>;
+  };
+
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const artworkRequest = useRef(0);
@@ -118,7 +146,7 @@ export default function App() {
 
   const findSimilar = async (source: Track) => {
     dispatch(startLoading());
-    try { dispatch(setSimilar(await musicServices.similarTracks(source))); }
+    try {\n      const results = await musicServices.similarTracks(source);\n      dispatch(setSimilar(results));\n      requestPreviews(results.map((item) => ({ artist: item.artist, title: item.title })));\n    }
     catch (e) { dispatch(setError(e instanceof Error ? e.message : "Ошибка поиска похожих треков")); }
   };
 
@@ -203,7 +231,7 @@ export default function App() {
           <span className="eyebrow">Yandex · confidence {Math.round(yandexResult.confidence * 100)}%</span>
           {yandexResult.artist && <p><strong>Исполнитель:</strong> {yandexResult.artist}</p>}
           {yandexResult.title && <p><strong>Название:</strong> {yandexResult.title}</p>}
-          {!yandexResult.artist && !yandexResult.title && <p>Песня не определена.</p>}
+          {!yandexResult.artist && !yandexResult.title && <p>Песня не определена.</p>}\n          {yandexResult.artist && yandexResult.title && renderPreview(yandexResult.artist, yandexResult.title)}
         </div>
       </div>
     </section>}
@@ -215,7 +243,7 @@ export default function App() {
           <span className="eyebrow">FOUND · {track.source}</span>
           <h2>{track.title}</h2><p>{track.artist}</p>
           {track.album && <small>{track.album}</small>}
-          {track.timecode && <small>Фрагмент: {track.timecode}</small>}
+          {track.timecode && <small>Фрагмент: {track.timecode}</small>}\n          {renderPreview(track.artist, track.title)}
           <div className="actions">
             <button onClick={() => void findSimilar(track)}>Похожие треки</button>
             <button onClick={() => void showTrackLyrics(track)} disabled={loading}>
@@ -310,7 +338,7 @@ export default function App() {
       <div className="section-heading"><span>DISCOVERY</span><h2>Похожие треки</h2></div>
       <div className="similar-grid">{similar.map((item, i) =>
         <article className="similar-card" key={`${item.artist}-${item.title}-${i}`}>
-          <span>{String(i + 1).padStart(2, "0")}</span><div><strong>{item.title}</strong><p>{item.artist}</p></div>
+          <span>{String(i + 1).padStart(2, "0")}</span><div className="similar-card-content"><strong>{item.title}</strong><p>{item.artist}</p>{renderPreview(item.artist, item.title)}</div>
         </article>)}</div>
     </section>}
 
