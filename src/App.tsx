@@ -31,7 +31,10 @@ function ArtworkPreview({ src, alt, previewUrl }: { src?: string | null; alt: st
   return <div className={`artwork-preview ${src ? "" : "artwork-placeholder"}`}>
     {src ? <img src={src} crossOrigin="anonymous" alt={alt} className="cover" /> : <div className="cover placeholder" aria-hidden="true">♪</div>}
     {previewUrl && <>
-      <audio ref={audioRef} src={previewUrl} preload="none" onEnded={() => setPlaying(false)}
+      <audio ref={audioRef} src={previewUrl} preload="none" onEnded={() => {
+        setPlaying(false);
+        window.dispatchEvent(new CustomEvent("krolikov:playback", { detail: { playing: false, src, alt, audio: audioRef.current } }));
+      }}
         onPause={() => {
           setPlaying(false);
           window.dispatchEvent(new CustomEvent("krolikov:playback", { detail: { playing: false, src, alt, audio: audioRef.current } }));
