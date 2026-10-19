@@ -309,11 +309,16 @@ export default function App() {
   const findSimilar = async (source: Track) => {
     if (similarTracksLoading) return;
     setSimilarTracksLoading(true);
+    setSimilarLyrics([]);
+    dispatch(setSimilar([]));
     try {
-      const results = await musicServices.similarTracks(source);
-      dispatch(setSimilar(results));
-      requestPreviews(results.map((item) => ({ artist: item.artist, title: item.title })));
-      if (results.length === 0) dispatch(setError("Похожие треки не найдены."));
+      // Reuse the same LRCLIB mapping and enrichment flow as “Показать похожие”
+      // on text-search cards, so these results include lyrics and album artwork.
+      const result = await musicServices.searchSimilarLyrics(source.artist, source.title);
+      setSimilarLyrics(result.results);
+      requestPreviews(result.results.map((item) => ({ artist: item.artist, title: item.track })));
+      void musicServices.loadArtwork(result.results).then(setSimilarLyrics);
+      if (result.results.length === 0) dispatch(setError("Похожие треки найдены, но тексты для них не найдены в LRCLIB."));
     }
     catch (e) { dispatch(setError(e instanceof Error ? e.message : "Ошибка поиска похожих треков")); }
     finally { setSimilarTracksLoading(false); }
