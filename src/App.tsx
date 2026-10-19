@@ -108,17 +108,26 @@ export default function App() {
           if (context) {
             context.drawImage(artwork, 0, 0, 32, 32);
             const pixels = context.getImageData(0, 0, 32, 32).data;
-            const buckets = Array.from({ length: 3 }, () => ({ r: 0, g: 0, b: 0, n: 0, score: 0 }));
+            // Six hue buckets keep visually distinct colors (e.g. pink, green and blue)
+            // separate instead of grouping every red/pink shade into one channel bucket.
+            const buckets = Array.from({ length: 6 }, () => ({ r: 0, g: 0, b: 0, n: 0, score: 0 }));
             for (let i = 0; i < pixels.length; i += 4) {
               const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
               if (pixels[i + 3] < 150) continue;
               const max = Math.max(r, g, b), min = Math.min(r, g, b);
               const brightness = r * 0.299 + g * 0.587 + b * 0.114;
               const saturation = max === 0 ? 0 : (max - min) / max;
-              // Ignore white, grey and washed-out pixels; prioritize vivid cover colors.
               if (brightness < 65 || max < 90 || saturation < 0.28 || max - min < 35) continue;
               if (brightness > 242 && saturation < 0.58) continue;
-              const bucket = r >= g && r >= b ? 0 : (b >= r && b >= g ? 2 : 1);
+              const delta = max - min;
+              let hue = 0;
+              if (delta > 0) {
+                if (max === r) hue = 60 * (((g - b) / delta) % 6);
+                else if (max === g) hue = 60 * ((b - r) / delta + 2);
+                else hue = 60 * ((r - g) / delta + 4);
+              }
+              if (hue < 0) hue += 360;
+              const bucket = Math.floor(hue / 60) % 6;
               const weight = Math.pow(saturation, 1.7) * (0.45 + brightness / 255);
               buckets[bucket].r += r * weight;
               buckets[bucket].g += g * weight;
@@ -128,19 +137,20 @@ export default function App() {
             }
             const vivid = buckets.filter((x) => x.n && x.score > 0).map((x) => {
               const rgb = [x.r / x.score, x.g / x.score, x.b / x.score];
-              // Increase saturation without whitening the color.
               const avg = (rgb[0] + rgb[1] + rgb[2]) / 3;
               let boosted = rgb.map((v) => avg + (v - avg) * 1.55);
               const peak = Math.max(...boosted);
               if (peak > 0) boosted = boosted.map((v) => Math.min(238, Math.max(0, v * Math.min(1.12, 225 / peak))));
               return { color: "#" + boosted.map((v) => Math.round(v).toString(16).padStart(2, "0")).join(""), score: x.score };
-            }).sort((a, b) => b.score - a.score).map((x) => x.color);
+            }).sort((a, b) => b.score - a.score);
             if (vivid.length) {
               const fallback = ["#8b5cf6", "#22d3ee", "#fb7185"];
+              // Prefer three different hue families; use fallbacks only if the cover lacks enough colors.
+              const selected = vivid.slice(0, 3).map((x) => x.color);
               setAmbientColors([
-                vivid[0] ?? fallback[0],
-                vivid[1] ?? vivid[0] ?? fallback[1],
-                vivid[2] ?? vivid[1] ?? vivid[0] ?? fallback[2],
+                selected[0] ?? fallback[0],
+                selected[1] ?? fallback[1],
+                selected[2] ?? fallback[2],
               ] as [string, string, string]);
             }
           }
