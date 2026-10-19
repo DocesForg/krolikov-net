@@ -30,7 +30,7 @@ export default function App() {
         ? await musicServices.recognizeFromMicrophone(file)
         : await musicServices.recognize(file);
       dispatch(setTrack(result.track));
-      if (!result.track) dispatch(setError("Трек не найден. AcoustID и Gemini не смогли уверенно определить эту запись."));
+      if (!result.track) dispatch(setError("Трек не найден. AcoustID и Яндекс Агент не смогли определить эту запись."));
     } catch (e) { dispatch(setError(e instanceof Error ? e.message : "Ошибка распознавания")); }
   };
 
@@ -131,7 +131,7 @@ export default function App() {
       mediaRecorder.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
         const blob = new Blob(chunks.current, { type: mediaRecorder.mimeType || "audio/webm" });
-        void recognize(new File([blob], "microphone.webm", { type: blob.type }), true);
+        void recognize(new File([blob], "microphone-recording.webm", { type: blob.type }), true);
         setRecording(false);
       };
       mediaRecorder.start(); setRecording(true);
