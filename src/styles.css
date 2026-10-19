@@ -3,7 +3,7 @@
 *{box-sizing:border-box}html{min-width:320px;background:#090b0f}body{margin:0;min-width:320px;background:#090b0f;overflow-x:hidden}
 body:before,body:after{content:"";position:fixed;z-index:0;pointer-events:none;inset:-45%;background:conic-gradient(from 210deg at 50% 45%,transparent 0deg,color-mix(in srgb,var(--ambient-a) 28%,transparent) 28deg,transparent 58deg,color-mix(in srgb,var(--ambient-b) 22%,transparent) 96deg,transparent 130deg,color-mix(in srgb,var(--ambient-c) 20%,transparent) 166deg,transparent 205deg,color-mix(in srgb,var(--ambient-a) 25%,transparent) 250deg,transparent 292deg,color-mix(in srgb,var(--ambient-b) 18%,transparent) 330deg,transparent 360deg);filter:blur(35px);opacity:var(--ray-opacity,.9);animation:ambient-rays 18s linear infinite}
 body:after{z-index:0;inset:-25%;background:radial-gradient(circle at 50% 15%,color-mix(in srgb,var(--ambient-a) 24%,transparent),transparent 32%),radial-gradient(circle at 15% 70%,color-mix(in srgb,var(--ambient-b) 18%,transparent),transparent 28%),radial-gradient(circle at 90% 60%,color-mix(in srgb,var(--ambient-c) 18%,transparent),transparent 26%);filter:blur(55px);animation:ambient-glow 22s ease-in-out infinite alternate}
-@keyframes ambient-rays{from{transform:rotate(0deg) scale(calc(1 + var(--audio-energy,0) * .12))}to{transform:rotate(360deg) scale(var(--ray-scale,1))}}@keyframes ambient-glow{from{transform:scale(1) translate3d(-2%,0,0)}to{transform:scale(var(--glow-scale,1)) translate3d(2%,-1%,0)}}button,input{font:inherit}
+@keyframes ambient-rays{from{transform:rotate(0deg) scale(1)}to{transform:rotate(360deg) scale(var(--ray-scale,1))}}@keyframes ambient-glow{from{transform:scale(1) translate3d(-2%,0,0)}to{transform:scale(var(--glow-scale,1)) translate3d(2%,-1%,0)}}button,input{font:inherit}
 .app-shell{position:relative;z-index:1;width:min(1180px,calc(100% - 40px));margin:auto;padding:24px 0 48px}.topbar{display:flex;justify-content:space-between;align-items:center;padding-bottom:70px}
 .brand{display:flex;align-items:center;gap:11px;font-weight:800;letter-spacing:-.035em;font-size:18px}.brand-mark{width:46px;height:46px;object-fit:contain;display:block;filter:drop-shadow(0 8px 18px rgba(120,80,255,.18))}
 .status,.eyebrow,.section-heading span{font-size:11px;letter-spacing:.16em;color:#858b98;font-weight:700}.hero{max-width:850px;margin:auto;text-align:center}
@@ -290,5 +290,5 @@ body:after{z-index:0;inset:-25%;background:radial-gradient(circle at 50% 15%,col
 
 /* Artwork-colored ambient rays react to the audio spectrum during playback. */
 body:before,body:after{transition:opacity .12s ease,filter .12s ease}
-body:after{filter:blur(calc(55px - var(--audio-bass,0) * 10px))}
+body:after{filter:blur(45px)}
 @media (prefers-reduced-motion: reduce){body:before,body:after{animation:none}}
