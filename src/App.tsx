@@ -385,6 +385,7 @@ export default function App() {
       <div className="section-heading"><span>DISCOVERY</span><h2>Похожие треки</h2></div>
       <div className="similar-grid">{similar.map((item, i) =>
         <article className="similar-card" key={`${item.artist}-${item.title}-${i}`}>
+          <ArtworkPreview src={item.artworkUrl} alt={`${item.title} — ${item.artist}`} previewUrl={previews[previewKey(item.artist, item.title)]?.previewUrl} />
           <span>{String(i + 1).padStart(2, "0")}</span><div className="similar-card-content"><strong>{item.title}</strong><p>{item.artist}</p>{renderPreview(item.artist, item.title)}</div>
         </article>)}</div>
     </section>}
