@@ -137,8 +137,7 @@ export async function recognizeAudioFromAgent(file) {
       }],
     };
 
-  try {
-    // Временно используем fetch, чтобы записывать исходное тело ошибки Yandex API.
+    // Используем fetch, чтобы записывать исходное тело ошибки Yandex API.
     const response = await fetch(`${YANDEX_BASE_URL}/responses`, {
       method: "POST",
       headers: {
