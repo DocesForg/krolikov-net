@@ -62,6 +62,7 @@ export interface MusicServices {
   recognize(file: File): Promise<MusicRecognition>;
   recognizeFromMicrophone(file: File): Promise<MusicRecognition>;
   searchLyrics(query: string): Promise<LyricsSearchResult>;
+  loadArtwork(items: Lyrics[]): Promise<Lyrics[]>;
   searchSimilarLyrics(artist: string, title: string): Promise<SimilarLyricsResult>;
   searchByGenre(genre: string): Promise<GenreLyricsResult>;
   similarTracks(track: Track): Promise<Track[]>;
