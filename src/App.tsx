@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
 import { musicServices } from "./services/music";
 import { useAppDispatch, useAppSelector } from "./store/hooks";
@@ -29,7 +29,15 @@ function ArtworkPreview({ src, alt, previewUrl }: { src?: string | null; alt: st
   return <div className={`artwork-preview ${src ? "" : "artwork-placeholder"}`}>
     {src ? <img src={src} alt={alt} className="cover" /> : <div className="cover placeholder" aria-hidden="true">♪</div>}
     {previewUrl && <>
-      <audio ref={audioRef} src={previewUrl} preload="none" onEnded={() => setPlaying(false)} onPause={() => setPlaying(false)} onPlay={() => setPlaying(true)} />
+      <audio ref={audioRef} src={previewUrl} preload="none" onEnded={() => setPlaying(false)}
+        onPause={() => {
+          setPlaying(false);
+          window.dispatchEvent(new CustomEvent("krolikov:playback", { detail: { playing: false, src, alt } }));
+        }}
+        onPlay={() => {
+          setPlaying(true);
+          window.dispatchEvent(new CustomEvent("krolikov:playback", { detail: { playing: true, src, alt } }));
+        }} />
       <button type="button" className="artwork-play" onClick={() => void togglePlayback()} aria-label={playing ? `Поставить на паузу: ${alt}` : `Прослушать фрагмент: ${alt}`} title={playing ? "Пауза" : "Слушать 30 секунд"}>
         {playing ? <span className="pause-icon" aria-hidden="true">Ⅱ</span> : <span className="play-icon" aria-hidden="true">▶</span>}
       </button>
@@ -53,6 +61,56 @@ export default function App() {
   const [genreRecommendations, setGenreRecommendations] = useState<{ artist: string; title: string }[]>([]);
   const [genreLoading, setGenreLoading] = useState(false);
   const [previews, setPreviews] = useState<Record<string, { previewUrl: string; trackUrl: string }>>({});
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+  const [ambientColors, setAmbientColors] = useState<[string, string, string]>(["#7655ff", "#00b9d6", "#ec4d9b"]);
+
+  useEffect(() => {
+    const handlePlayback = (event: Event) => {
+      const detail = (event as CustomEvent<{ playing: boolean; src?: string | null; alt?: string }>).detail;
+      setIsPreviewPlaying(detail.playing);
+      if (!detail.playing) return;
+      const artwork = Array.from(document.querySelectorAll<HTMLImageElement>(".artwork-preview img"))
+        .find((img) => img.alt === detail.alt && img.complete && img.naturalWidth > 0);
+      if (!artwork) return;
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 12;
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+        if (!context) return;
+        context.drawImage(artwork, 0, 0, 12, 12);
+        const pixels = context.getImageData(0, 0, 12, 12).data;
+        const buckets = Array.from({ length: 3 }, () => ({ r: 0, g: 0, b: 0, n: 0 }));
+        for (let i = 0; i < pixels.length; i += 4) {
+          const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+          const brightness = (r + g + b) / 3;
+          if (brightness < 22 || brightness > 242) continue;
+          const bucket = Math.abs(r - g) + Math.abs(g - b) > 90 ? (r > b ? 0 : 2) : 1;
+          buckets[bucket].r += r; buckets[bucket].g += g; buckets[bucket].b += b; buckets[bucket].n++;
+        }
+        const colors = buckets.filter((bucket) => bucket.n).map((bucket) => {
+          const values = [bucket.r, bucket.g, bucket.b].map((sum) => Math.round(sum / bucket.n));
+          return "#" + values.map((value) => value.toString(16).padStart(2, "0")).join("");
+        });
+        if (colors.length) setAmbientColors([colors[0], colors[1] ?? colors[0], colors[2] ?? colors[0]]);
+      } catch {
+        // Some image hosts block canvas pixel access; playback still works with the existing palette.
+      }
+    };
+    window.addEventListener("krolikov:playback", handlePlayback);
+    return () => window.removeEventListener("krolikov:playback", handlePlayback);
+  }, []);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--ambient-a", ambientColors[0]);
+    root.style.setProperty("--ambient-b", ambientColors[1]);
+    root.style.setProperty("--ambient-c", ambientColors[2]);
+    return () => {
+      root.style.removeProperty("--ambient-a");
+      root.style.removeProperty("--ambient-b");
+      root.style.removeProperty("--ambient-c");
+    };
+  }, [ambientColors]);
   const previewKey = (artist: string, title: string) => `${artist.trim().toLocaleLowerCase()}::${title.trim().toLocaleLowerCase()}`;
   const requestPreviews = (items: Array<{ artist: string; title: string }>) => {
     if (!items.length) return;
@@ -212,7 +270,10 @@ export default function App() {
   const onDrop = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); setDragging(false); onFile(e.dataTransfer.files[0]); };
   const onInput = (e: ChangeEvent<HTMLInputElement>) => onFile(e.target.files?.[0]);
 
-  return <main className="app-shell">
+  return <main className={`app-shell ${isPreviewPlaying ? "is-preview-playing" : ""}`}>
+    <div className="ambient-equalizer" aria-hidden="true">
+      {Array.from({ length: 48 }, (_, i) => <span key={i} style={{ "--bar-index": i } as React.CSSProperties} />)}
+    </div>
     <header className="topbar">
       <div className="brand"><img className="brand-mark" src="/krolikov-logo.png" alt="" aria-hidden="true" /><span>krolikov.net</span></div>
     </header>
