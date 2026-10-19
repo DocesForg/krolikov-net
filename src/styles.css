@@ -177,8 +177,12 @@ body:after{z-index:0;inset:-25%;background:radial-gradient(circle at 50% 15%,rgb
   border-radius: inherit;
 }
 .artwork-preview > .cover.placeholder {
+  display: grid;
+  place-items: center;
   width: 100%;
   height: 100%;
+  text-align: center;
+  line-height: 1;
 }
 .artwork-preview audio { display: none; }
 .artwork-play {
@@ -193,7 +197,7 @@ body:after{z-index:0;inset:-25%;background:radial-gradient(circle at 50% 15%,rgb
   transform: translate(-50%, -50%);
   border: 1px solid rgba(255,255,255,.65);
   border-radius: 50%;
-  background: rgba(12,14,19,.78);
+  background: rgba(12,14,19,.48);
   color: #fff;
   font-size: 24px;
   line-height: 1;
@@ -204,7 +208,7 @@ body:after{z-index:0;inset:-25%;background:radial-gradient(circle at 50% 15%,rgb
 }
 .artwork-play:hover {
   transform: translate(-50%, -50%) scale(1.08);
-  background: rgba(12,14,19,.94);
+  background: rgba(12,14,19,.68);
 }
 .play-icon { margin-left: 4px; }
 .pause-icon { font-weight: 800; font-size: 27px; }
