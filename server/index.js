@@ -743,7 +743,7 @@ async function findTrackPreview(artist, title) {
           artist,
           title,
           previewUrl: String(best.previewUrl).replace(/^http:/i, "https:"),
-          trackUrl: String(best.trackViewUrl).replace(/^http:\\/\\//i, "https://"),
+          trackUrl: String(best.trackViewUrl).replace(/^http:/i, "https:"),
         }
       : empty;
     previewCache.set(cacheKey, { value: result, expiresAt: Date.now() + PREVIEW_CACHE_TTL });
