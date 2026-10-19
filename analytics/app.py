@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import DateTime, Float, Integer, String, Text, create_engine, desc, func
-from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker\nfrom sqlalchemy import text
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -62,7 +62,7 @@ def startup():
 def health():
     try:
         with engine.connect() as connection:
-            connection.execute(func.now().select())
+            connection.execute(text("SELECT 1"))
         return {"status": "ok", "database": "connected"}
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Database unavailable") from exc
