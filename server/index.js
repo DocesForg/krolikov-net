@@ -123,35 +123,54 @@ app.post("/api/gemini/recognize", memoryUpload.single("file"), async (req, res) 
 
 async function enrichLyricsResults(items) {
   const results = (Array.isArray(items) ? items : []).slice(0, 20);
+  const basicResults = results.map((item) => ({
+    ...item,
+    album: item?.albumName || null,
+    artworkUrl: item?.artworkUrl || null,
+  }));
 
-  // MusicBrainz ограничивает частоту запросов, поэтому не отправляем 20 запросов одновременно.
-  // Первые 8 результатов соответствуют количеству карточек, которые показывает frontend.
-  const enriched = [];
-  for (let start = 0; start < results.length; start += 2) {
-    const batch = results.slice(start, start + 2);
-    const batchResults = await Promise.all(batch.map(async (item) => {
-      const artist = String(item?.artistName || "").trim();
-      const title = String(item?.trackName || "").trim();
-      const album = String(item?.albumName || "").trim() || null;
-      const artworkUrl = artist && title
-        ? await findArtwork(artist, title, album).catch(() => null)
-        : null;
+  // Обложки — дополнительная информация: они не должны задерживать показ текста.
+  // Ограничиваем ожидание всей операции, а при медленном MusicBrainz сразу
+  // возвращаем результаты LRCLIB без обложек.
+  const enrichment = (async () => {
+    const enriched = [];
+    const artworkCandidates = results.slice(0, 4);
 
-      return {
-        ...item,
-        album: item?.albumName || null,
-        artworkUrl,
-      };
-    }));
+    for (let start = 0; start < artworkCandidates.length; start += 2) {
+      const batch = artworkCandidates.slice(start, start + 2);
+      const batchResults = await Promise.all(batch.map(async (item) => {
+        const artist = String(item?.artistName || "").trim();
+        const title = String(item?.trackName || "").trim();
+        const album = String(item?.albumName || "").trim() || null;
+        const artworkUrl = artist && title
+          ? await findArtwork(artist, title, album).catch(() => null)
+          : null;
 
-    enriched.push(...batchResults);
-    if (enriched.length >= 8) {
-      enriched.push(...results.slice(enriched.length));
-      break;
+        return {
+          ...item,
+          album: item?.albumName || null,
+          artworkUrl,
+        };
+      }));
+      enriched.push(...batchResults);
     }
-  }
 
-  return enriched;
+    return [
+      ...enriched,
+      ...basicResults.slice(enriched.length),
+    ];
+  })();
+
+  let timeoutId;
+  const timeout = new Promise((resolve) => {
+    timeoutId = setTimeout(() => resolve(basicResults), 2500);
+  });
+
+  try {
+    return await Promise.race([enrichment, timeout]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 async function searchLrcLib(query) {
