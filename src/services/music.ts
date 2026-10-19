@@ -72,5 +72,6 @@ export const musicServices: MusicServices = {
       source: item.source || "Yandex Agent + LRCLIB",
     }));
   },
-  findPreviews,\n  analyzeTrack: (track) => ai.analyzeTrack(track),
+  findPreviews,
+  analyzeTrack: (track) => ai.analyzeTrack(track),
 };
