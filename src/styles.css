@@ -1,8 +1,9 @@
 :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#f4f5f7;background:#090b0f;font-synthesis:none}
+:root{--ambient-a:#7655ff;--ambient-b:#00b9d6;--ambient-c:#ec4d9b;--audio-energy:0;--audio-bass:0;--ray-scale:1;--ray-opacity:.9;--glow-scale:1}
 *{box-sizing:border-box}html{min-width:320px;background:#090b0f}body{margin:0;min-width:320px;background:#090b0f;overflow-x:hidden}
-body:before,body:after{content:"";position:fixed;z-index:0;pointer-events:none;inset:-45%;background:conic-gradient(from 210deg at 50% 45%,transparent 0deg,color-mix(in srgb,var(--ambient-a) 28%,transparent) 28deg,transparent 58deg,color-mix(in srgb,var(--ambient-b) 22%,transparent) 96deg,transparent 130deg,color-mix(in srgb,var(--ambient-c) 20%,transparent) 166deg,transparent 205deg,color-mix(in srgb,var(--ambient-a) 25%,transparent) 250deg,transparent 292deg,color-mix(in srgb,var(--ambient-b) 18%,transparent) 330deg,transparent 360deg);filter:blur(35px);opacity:.9;animation:ambient-rays 18s linear infinite}
-body:after{z-index:0;inset:-25%;background:radial-gradient(circle at 50% 15%,rgba(125,82,255,.2),transparent 32%),radial-gradient(circle at 15% 70%,color-mix(in srgb,var(--ambient-b) 18%,transparent),transparent 28%),radial-gradient(circle at 90% 60%,rgba(255,70,170,.11),transparent 26%);filter:blur(55px);animation:ambient-glow 22s ease-in-out infinite alternate}
-@keyframes ambient-rays{from{transform:rotate(0deg) scale(1)}to{transform:rotate(360deg) scale(1.08)}}@keyframes ambient-glow{from{transform:scale(1) translate3d(-2%,0,0)}to{transform:scale(1.12) translate3d(2%,-1%,0)}}button,input{font:inherit}
+body:before,body:after{content:"";position:fixed;z-index:0;pointer-events:none;inset:-45%;background:conic-gradient(from 210deg at 50% 45%,transparent 0deg,color-mix(in srgb,var(--ambient-a) 28%,transparent) 28deg,transparent 58deg,color-mix(in srgb,var(--ambient-b) 22%,transparent) 96deg,transparent 130deg,color-mix(in srgb,var(--ambient-c) 20%,transparent) 166deg,transparent 205deg,color-mix(in srgb,var(--ambient-a) 25%,transparent) 250deg,transparent 292deg,color-mix(in srgb,var(--ambient-b) 18%,transparent) 330deg,transparent 360deg);filter:blur(35px);opacity:var(--ray-opacity,.9);animation:ambient-rays 18s linear infinite}
+body:after{z-index:0;inset:-25%;background:radial-gradient(circle at 50% 15%,color-mix(in srgb,var(--ambient-a) 24%,transparent),transparent 32%),radial-gradient(circle at 15% 70%,color-mix(in srgb,var(--ambient-b) 18%,transparent),transparent 28%),radial-gradient(circle at 90% 60%,color-mix(in srgb,var(--ambient-c) 18%,transparent),transparent 26%);filter:blur(55px);animation:ambient-glow 22s ease-in-out infinite alternate}
+@keyframes ambient-rays{from{transform:rotate(0deg) scale(var(--ray-scale,1))}to{transform:rotate(360deg) scale(calc(var(--ray-scale,1) * 1.08))}}@keyframes ambient-glow{from{transform:scale(var(--glow-scale,1)) translate3d(-2%,0,0)}to{transform:scale(calc(var(--glow-scale,1) * 1.12)) translate3d(2%,-1%,0)}}button,input{font:inherit}
 .app-shell{position:relative;z-index:1;width:min(1180px,calc(100% - 40px));margin:auto;padding:24px 0 48px}.topbar{display:flex;justify-content:space-between;align-items:center;padding-bottom:70px}
 .brand{display:flex;align-items:center;gap:11px;font-weight:800;letter-spacing:-.035em;font-size:18px}.brand-mark{width:46px;height:46px;object-fit:contain;display:block;filter:drop-shadow(0 8px 18px rgba(120,80,255,.18))}
 .status,.eyebrow,.section-heading span{font-size:11px;letter-spacing:.16em;color:#858b98;font-weight:700}.hero{max-width:850px;margin:auto;text-align:center}
@@ -286,36 +287,8 @@ body:after{z-index:0;inset:-25%;background:radial-gradient(circle at 50% 15%,rgb
   }
 }
 
-/* Album-color ambience and equalizer during audio preview playback. */
-.ambient-equalizer {
-  position: fixed; z-index: -1; left: 0; right: 0; bottom: -3px;
-  height: clamp(90px, 22vh, 230px); display: flex; align-items: flex-end;
-  justify-content: center; gap: clamp(2px, .55vw, 8px); padding: 0 3vw;
-  pointer-events: none; opacity: 0; transition: opacity .65s ease;
-  -webkit-mask-image: linear-gradient(to top, #000 5%, transparent 100%);
-  mask-image: linear-gradient(to top, #000 5%, transparent 100%);
-}
-.ambient-equalizer span {
-  flex: 1; max-width: 22px; height: 8%; min-height: 5px;
-  border-radius: 999px 999px 0 0;
-  background: linear-gradient(to top, var(--ambient-a), var(--ambient-b), var(--ambient-c));
-  opacity: .6; transform-origin: bottom;
-}
-.is-preview-playing .ambient-equalizer { opacity: .8; }
-.is-preview-playing .ambient-equalizer span {
-  animation: equalizer-beat calc(.48s + (var(--bar-index) % 7) * .055s) ease-in-out infinite alternate;
-  animation-delay: calc((var(--bar-index) % 9) * -0.075s);
-}
-.is-preview-playing .ambient-equalizer span:nth-child(3n) { background: var(--ambient-a); }
-.is-preview-playing .ambient-equalizer span:nth-child(3n + 1) { background: var(--ambient-b); }
-.is-preview-playing .ambient-equalizer span:nth-child(3n + 2) { background: var(--ambient-c); }
-@keyframes equalizer-beat {
-  0% { height: 7%; opacity: .28; transform: scaleY(.6); }
-  38% { height: 24%; opacity: .58; }
-  62% { height: 62%; opacity: .88; transform: scaleY(1); }
-  100% { height: 14%; opacity: .42; transform: scaleY(.72); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .is-preview-playing .ambient-equalizer span { animation: none; height: 18%; }
-  body:before, body:after { animation: none; }
-}
+
+/* Artwork-colored ambient rays react to the audio spectrum during playback. */
+body:before,body:after{transition:opacity .12s ease,filter .12s ease}
+body:after{filter:blur(calc(55px - var(--audio-bass,0) * 10px))}
+@media (prefers-reduced-motion: reduce){body:before,body:after{animation:none}}
