@@ -119,7 +119,7 @@ export async function recognizeAudioFromAgent(file) {
         {
           type: "input_file",
           filename,
-          file_data: `data:${mimeType};base64,${file.buffer.toString("base64")}`,
+          file_data: file.buffer.toString("base64"),,
         },
       ],
     }],
