@@ -115,9 +115,11 @@ export default function App() {
               const max = Math.max(r, g, b), min = Math.min(r, g, b);
               const brightness = r * 0.299 + g * 0.587 + b * 0.114;
               const saturation = max === 0 ? 0 : (max - min) / max;
-              if (brightness < 72 || max < 95 || (brightness < 105 && saturation < 0.35)) continue;
-              const bucket = saturation < 0.22 ? 1 : (r >= g && r >= b ? 0 : (b >= r && b >= g ? 2 : 1));
-              const weight = (0.25 + brightness / 255) * (0.35 + saturation);
+              // Ignore white, grey and washed-out pixels; prioritize vivid cover colors.
+              if (brightness < 65 || max < 90 || saturation < 0.28 || max - min < 35) continue;
+              if (brightness > 242 && saturation < 0.58) continue;
+              const bucket = r >= g && r >= b ? 0 : (b >= r && b >= g ? 2 : 1);
+              const weight = Math.pow(saturation, 1.7) * (0.45 + brightness / 255);
               buckets[bucket].r += r * weight;
               buckets[bucket].g += g * weight;
               buckets[bucket].b += b * weight;
@@ -125,13 +127,13 @@ export default function App() {
               buckets[bucket].n++;
             }
             const vivid = buckets.filter((x) => x.n && x.score > 0).map((x) => {
-              let rgb = [x.r / x.score, x.g / x.score, x.b / x.score];
-              const max = Math.max(...rgb), min = Math.min(...rgb);
-              const avg = (max + min) / 2;
-              rgb = rgb.map((v) => Math.min(255, Math.round(avg + (v - avg) * 1.28 + 28)));
-              const lift = Math.max(...rgb);
-              if (lift < 190) rgb = rgb.map((v) => Math.min(255, Math.round(v * (190 / Math.max(1, lift)))));
-              return { color: "#" + rgb.map((v) => Math.round(v).toString(16).padStart(2, "0")).join(""), score: x.score };
+              const rgb = [x.r / x.score, x.g / x.score, x.b / x.score];
+              // Increase saturation without whitening the color.
+              const avg = (rgb[0] + rgb[1] + rgb[2]) / 3;
+              let boosted = rgb.map((v) => avg + (v - avg) * 1.55);
+              const peak = Math.max(...boosted);
+              if (peak > 0) boosted = boosted.map((v) => Math.min(238, Math.max(0, v * Math.min(1.12, 225 / peak))));
+              return { color: "#" + boosted.map((v) => Math.round(v).toString(16).padStart(2, "0")).join(""), score: x.score };
             }).sort((a, b) => b.score - a.score).map((x) => x.color);
             if (vivid.length) {
               const fallback = ["#8b5cf6", "#22d3ee", "#fb7185"];
