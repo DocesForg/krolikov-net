@@ -21,6 +21,7 @@ export default function App() {
   const [genreLoading, setGenreLoading] = useState(false);
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
+  const artworkRequest = useRef(0);
 
   const recognize = async (file: File, fromMicrophone = false) => {
     dispatch(startLoading());
@@ -39,6 +40,15 @@ export default function App() {
     void recognize(file);
   };
 
+  const loadLyricsArtwork = (items: import("./types/music").Lyrics[]) => {
+    const requestId = ++artworkRequest.current;
+    void musicServices.loadArtwork(items).then((updated) => {
+      if (requestId === artworkRequest.current && updated.some((item, index) => item.artworkUrl !== items[index]?.artworkUrl)) {
+        dispatch(setLyrics(updated));
+      }
+    });
+  };
+
   const searchLyrics = async () => {
     if (!query.trim() || loading) return;
     dispatch(startLoading());
@@ -46,6 +56,7 @@ export default function App() {
       const result = await musicServices.searchLyrics(query);
       setYandexResult(result.yandex);
       dispatch(setLyrics(result.results));
+      loadLyricsArtwork(result.results);
       if (result.results.length === 0) dispatch(setError("По вашему запросу ничего не найдено в LRCLIB."));
     } catch (e) { dispatch(setError(e instanceof Error ? e.message : "Ошибка поиска текста")); }
   };
@@ -79,6 +90,7 @@ export default function App() {
       const result = await musicServices.searchLyrics(source.title);
       setYandexResult(null);
       dispatch(setLyrics(result.results));
+      loadLyricsArtwork(result.results);
       if (result.results.length === 0) {
         dispatch(setError("Текст этого трека не найден в LRCLIB."));
       }
