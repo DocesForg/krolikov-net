@@ -7,6 +7,26 @@ const recognition = new AcoustIdRecognitionService();
 const lyrics = new LrcLibLyricsService();
 const ai = new GeminiMusicService();
 
+async function findPreviews(items: Array<{ artist: string; title: string }>) {
+  if (!items.length) return [];
+  try {
+    const response = await fetch("/api/music/previews", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: items.slice(0, 8) }),
+    });
+    const data = await response.json() as {
+      error?: string;
+      results?: Array<{ artist: string; title: string; previewUrl: string | null; trackUrl: string | null }>;
+    };
+    if (!response.ok) throw new Error(data.error || "Не удалось загрузить предпрослушивания");
+    return data.results || [];
+  } catch (error) {
+    console.warn("Предпрослушивания временно недоступны:", error);
+    return items.slice(0, 8).map((item) => ({ ...item, previewUrl: null, trackUrl: null }));
+  }
+}
+
 export const musicServices: MusicServices = {
   recognize: async (file) => {
     try {
@@ -52,5 +72,5 @@ export const musicServices: MusicServices = {
       source: item.source || "Yandex Agent + LRCLIB",
     }));
   },
-  analyzeTrack: (track) => ai.analyzeTrack(track),
+  findPreviews,\n  analyzeTrack: (track) => ai.analyzeTrack(track),
 };
