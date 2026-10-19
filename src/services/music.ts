@@ -19,6 +19,7 @@ export const musicServices: MusicServices = {
   },
   recognizeFromMicrophone: (file) => ai.recognizeAudio(file),
   searchLyrics: (query) => lyrics.searchLyrics(query),
+  loadArtwork: (items) => lyrics.loadArtwork(items),
   searchSimilarLyrics: (artist, title) => lyrics.searchSimilarLyrics(artist, title),
   searchByGenre: (genre) => lyrics.searchByGenre(genre),
   similarTracks: async (track) => {
