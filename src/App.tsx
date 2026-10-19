@@ -91,7 +91,7 @@ export default function App() {
           const values = [bucket.r, bucket.g, bucket.b].map((sum) => Math.round(sum / bucket.n));
           return "#" + values.map((value) => value.toString(16).padStart(2, "0")).join("");
         });
-        if (colors.length) setAmbientColors([colors[0], colors[1] ?? colors[0], colors[2] ?? colors[0]]);
+        if (colors.length) setAmbientColors([colors[0], colors[1] ?? colors[0], colors[2] ?? colors[0]] as [string, string, string]);
       } catch {
         // Some image hosts block canvas pixel access; playback still works with the existing palette.
       }
