@@ -173,19 +173,29 @@ async function enrichLyricsResults(items) {
   }
 }
 
+// LRCLIB может ограничивать частые запросы. Делаем небольшой интервал между
+// всеми запросами, включая повторные попытки.
+let lastLrcLibRequestAt = 0;
+async function waitForLrcLibSlot() {
+  const waitMs = Math.max(0, lastLrcLibRequestAt + 850 - Date.now());
+  if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
+  lastLrcLibRequestAt = Date.now();
+}
+
 async function searchLrcLib(query) {
   const url = new URL("https://lrclib.net/api/search");
   url.searchParams.set("q", query);
 
   let lastStatus = 503;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
+      await waitForLrcLibSlot();
       const response = await fetch(url, {
         headers: {
           "User-Agent": "Krolikov/0.2.0 (https://github.com/DocesForg/krolikov-net)",
           Accept: "application/json",
         },
-        signal: AbortSignal.timeout(7000),
+        signal: AbortSignal.timeout(9000),
       });
 
       lastStatus = response.status;
@@ -197,10 +207,10 @@ async function searchLrcLib(query) {
       if (![429, 500, 502, 503, 504].includes(response.status)) break;
 
       const retryAfter = Number(response.headers.get("retry-after") || "0");
-      const waitMs = Math.min(Math.max(retryAfter * 1000, 1000 * (attempt + 1)), 4000);
+      const waitMs = Math.min(Math.max(retryAfter * 1000, 1200 * (attempt + 1)), 6000);
       await new Promise((resolve) => setTimeout(resolve, waitMs));
     } catch {
-      if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 1200 * (attempt + 1)));
     }
   }
 
@@ -214,17 +224,34 @@ async function getLrcLibTrack(artist, title) {
   url.searchParams.set("artist_name", artist);
   url.searchParams.set("track_name", title);
 
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": "Krolikov/0.2.0 (https://github.com/DocesForg/krolikov-net)",
-      Accept: "application/json",
-    },
-    signal: AbortSignal.timeout(7000),
-  });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await waitForLrcLibSlot();
+      const response = await fetch(url, {
+        headers: {
+          "User-Agent": "Krolikov/0.2.0 (https://github.com/DocesForg/krolikov-net)",
+          Accept: "application/json",
+        },
+        signal: AbortSignal.timeout(9000),
+      });
 
-  if (!response.ok) return null;
-  const item = await response.json();
-  return item && typeof item === "object" ? item : null;
+      if (response.ok) {
+        const item = await response.json();
+        return item && typeof item === "object" ? item : null;
+      }
+
+      if (response.status === 404) return null;
+      if (![429, 500, 502, 503, 504].includes(response.status)) return null;
+
+      const retryAfter = Number(response.headers.get("retry-after") || "0");
+      const waitMs = Math.min(Math.max(retryAfter * 1000, 1200 * (attempt + 1)), 6000);
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    } catch {
+      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 1200 * (attempt + 1)));
+    }
+  }
+
+  return null;
 }
 
 
@@ -726,19 +753,22 @@ app.post("/api/lyrics/genre", async (req, res) => {
     const recommendations = await recommendTracksByGenre(genre);
     const results = [];
 
-    for (const recommendation of recommendations) {
-      let item = await getLrcLibTrack(recommendation.artist, recommendation.title);
+    for (const recommendation of recommendations.slice(0, 8)) {
+      try {
+        let item = await getLrcLibTrack(recommendation.artist, recommendation.title);
 
-      if (!item) {
-        const fallback = await searchLrcLib(`${recommendation.artist} ${recommendation.title}`);
-        item = fallback.find((candidate) =>
-          String(candidate?.artistName || "").toLowerCase() === recommendation.artist.toLowerCase()
-          && String(candidate?.trackName || "").toLowerCase() === recommendation.title.toLowerCase()
-        ) || null;
-      }
+        if (!item) {
+          const fallback = await searchLrcLib(`${recommendation.artist} ${recommendation.title}`);
+          item = fallback.find((candidate) =>
+            String(candidate?.artistName || "").toLowerCase() === recommendation.artist.toLowerCase()
+            && String(candidate?.trackName || "").toLowerCase() === recommendation.title.toLowerCase()
+          ) || null;
+        }
 
-      if (item) {
-        results.push(item);
+        if (item) results.push(item);
+      } catch (error) {
+        // Не прерываем весь подбор из-за временного отказа LRCLIB для одной песни.
+        console.warn("LRCLIB пропустил рекомендацию:", recommendation.title, error.message);
       }
     }
 
@@ -763,19 +793,22 @@ app.post("/api/lyrics/similar", async (req, res) => {
     const recommendations = await findSimilarTracksFromAgent(artist, title);
     const results = [];
 
-    for (const recommendation of recommendations) {
-      let item = await getLrcLibTrack(recommendation.artist, recommendation.title);
+    for (const recommendation of recommendations.slice(0, 8)) {
+      try {
+        let item = await getLrcLibTrack(recommendation.artist, recommendation.title);
 
-      if (!item) {
-        const fallback = await searchLrcLib(`${recommendation.artist} ${recommendation.title}`);
-        item = fallback.find((candidate) =>
-          String(candidate?.artistName || "").toLowerCase() === recommendation.artist.toLowerCase()
-          && String(candidate?.trackName || "").toLowerCase() === recommendation.title.toLowerCase()
-        ) || fallback[0] || null;
-      }
+        if (!item) {
+          const fallback = await searchLrcLib(`${recommendation.artist} ${recommendation.title}`);
+          item = fallback.find((candidate) =>
+            String(candidate?.artistName || "").toLowerCase() === recommendation.artist.toLowerCase()
+            && String(candidate?.trackName || "").toLowerCase() === recommendation.title.toLowerCase()
+          ) || fallback[0] || null;
+        }
 
-      if (item) {
-        results.push(item);
+        if (item) results.push(item);
+      } catch (error) {
+        // Остальные похожие треки продолжают обрабатываться.
+        console.warn("LRCLIB пропустил похожий трек:", recommendation.title, error.message);
       }
     }
 
