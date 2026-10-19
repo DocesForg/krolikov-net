@@ -65,11 +65,8 @@ export default function App() {
   const [ambientColors, setAmbientColors] = useState<[string, string, string]>(["#7655ff", "#00b9d6", "#ec4d9b"]);
 
   useEffect(() => {
-    let audioContext: AudioContext | null = null;
     let animationFrame = 0;
-    let activeAnalyser: AnalyserNode | null = null;
     let activeAudio: HTMLAudioElement | null = null;
-    const audioNodes = new WeakMap<HTMLAudioElement, AnalyserNode>();
     const root = document.documentElement;
 
     const setEnergy = (energy: number, bass: number) => {
@@ -77,93 +74,97 @@ export default function App() {
       const b = Math.max(0, Math.min(1, bass));
       root.style.setProperty("--audio-energy", e.toFixed(3));
       root.style.setProperty("--audio-bass", b.toFixed(3));
-      root.style.setProperty("--ray-scale", (1 + e * 0.16 + b * 0.1).toFixed(3));
-      root.style.setProperty("--ray-opacity", (0.68 + e * 0.3).toFixed(3));
-      root.style.setProperty("--glow-scale", (1 + e * 0.12 + b * 0.14).toFixed(3));
+      root.style.setProperty("--ray-scale", (1 + e * 0.24 + b * 0.14).toFixed(3));
+      root.style.setProperty("--ray-opacity", (0.78 + e * 0.22).toFixed(3));
+      root.style.setProperty("--glow-scale", (1 + e * 0.16 + b * 0.18).toFixed(3));
     };
     const stopAnimation = () => {
       if (animationFrame) window.cancelAnimationFrame(animationFrame);
       animationFrame = 0;
-      activeAnalyser = null;
       activeAudio = null;
       setEnergy(0, 0);
     };
     const animate = () => {
-      if (!activeAnalyser || !activeAudio || activeAudio.paused) {
+      const audio = activeAudio;
+      if (!audio || audio.paused || audio.ended) {
         stopAnimation();
         return;
       }
-      const data = new Uint8Array(activeAnalyser.frequencyBinCount);
-      activeAnalyser.getByteFrequencyData(data);
-      const bassEnd = Math.max(1, Math.floor(data.length * 0.12));
-      let bassSum = 0, total = 0;
-      for (let i = 0; i < data.length; i++) total += data[i];
-      for (let i = 0; i < bassEnd; i++) bassSum += data[i];
-      setEnergy(total / Math.max(1, data.length) / 255, bassSum / bassEnd / 255);
+      // Keep audio playback on the native media path: cross-origin previews can
+      // become silent when routed through Web Audio without CORS permission.
+      // Pulse the rays in a steady musical beat while the preview is playing.
+      const t = audio.currentTime;
+      const phase = (t * 2.15) % 1;
+      const pulse = Math.pow(Math.max(0, 1 - phase), 3);
+      const secondary = Math.pow(Math.max(0, 1 - ((t * 4.3) % 1)), 5) * 0.35;
+      setEnergy(0.18 + pulse * 0.82, 0.12 + Math.max(pulse, secondary) * 0.88);
       animationFrame = window.requestAnimationFrame(animate);
     };
-    const handlePlayback = async (event: Event) => {
+    const handlePlayback = (event: Event) => {
       const detail = (event as CustomEvent<{playing:boolean;src?:string|null;alt?:string;audio?:HTMLAudioElement|null}>).detail;
       setIsPreviewPlaying(detail.playing);
       if (!detail.playing) {
         if (detail.audio === activeAudio || !detail.audio) stopAnimation();
         return;
       }
+
       const artwork = Array.from(document.querySelectorAll<HTMLImageElement>(".artwork-preview img"))
         .find((img) => (detail.src && (img.currentSrc === detail.src || img.src === detail.src)) ||
           (detail.alt && img.alt === detail.alt && img.complete && img.naturalWidth > 0));
       if (artwork?.complete && artwork.naturalWidth > 0) {
         try {
           const canvas = document.createElement("canvas");
-          canvas.width = canvas.height = 16;
-          const context = canvas.getContext("2d", {willReadFrequently:true});
+          canvas.width = canvas.height = 32;
+          const context = canvas.getContext("2d", { willReadFrequently: true });
           if (context) {
-            context.drawImage(artwork, 0, 0, 16, 16);
-            const pixels = context.getImageData(0, 0, 16, 16).data;
-            const buckets = Array.from({length:3},()=>({r:0,g:0,b:0,n:0}));
-            for(let i=0;i<pixels.length;i+=4){
-              const r=pixels[i],g=pixels[i+1],b=pixels[i+2];
-              if(pixels[i+3]<100||Math.max(r,g,b)<24||Math.min(r,g,b)>238) continue;
-              const bucket=Math.max(r,g,b)-Math.min(r,g,b)<35?1:(r>=b?0:2);
-              buckets[bucket].r+=r;buckets[bucket].g+=g;buckets[bucket].b+=b;buckets[bucket].n++;
+            context.drawImage(artwork, 0, 0, 32, 32);
+            const pixels = context.getImageData(0, 0, 32, 32).data;
+            const buckets = Array.from({ length: 3 }, () => ({ r: 0, g: 0, b: 0, n: 0, score: 0 }));
+            for (let i = 0; i < pixels.length; i += 4) {
+              const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+              if (pixels[i + 3] < 150) continue;
+              const max = Math.max(r, g, b), min = Math.min(r, g, b);
+              const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
+              const saturation = max === 0 ? 0 : (max - min) / max;
+              // Ignore black/shadow pixels and prefer bright, saturated artwork colors.
+              if (brightness < 72 || max < 95 || (brightness < 105 && saturation < 0.35)) continue;
+              const bucket = saturation < 0.22 ? 1 : (r >= g && r >= b ? 0 : (b >= r && b >= g ? 2 : 1));
+              const weight = (0.25 + brightness / 255) * (0.35 + saturation);
+              buckets[bucket].r += r * weight;
+              buckets[bucket].g += g * weight;
+              buckets[bucket].b += b * weight;
+              buckets[bucket].score += weight;
+              buckets[bucket].n++;
             }
-            const colors=buckets.filter(x=>x.n).map(x=>{
-              const values=[x.r,x.g,x.b].map(sum=>Math.round(sum/x.n));
-              return "#"+values.map(v=>v.toString(16).padStart(2,"0")).join("");
-            });
-            if(colors.length) setAmbientColors([colors[0],colors[1]??colors[0],colors[2]??colors[0]] as [string,string,string]);
+            const vivid = buckets.filter(x => x.n && x.score > 0).map(x => {
+              let rgb = [x.r / x.score, x.g / x.score, x.b / x.score];
+              const max = Math.max(...rgb), min = Math.min(...rgb);
+              const avg = (max + min) / 2;
+              // Lift dark samples and increase color separation without washing them out.
+              rgb = rgb.map(v => Math.min(255, Math.round(avg + (v - avg) * 1.28 + 28)));
+              const lift = Math.max(...rgb);
+              if (lift < 190) rgb = rgb.map(v => Math.min(255, Math.round(v * (190 / Math.max(1, lift)))));
+              return { color: "#" + rgb.map(v => Math.round(v).toString(16).padStart(2, "0")).join(""), score: x.score };
+            }).sort((a, b) => b.score - a.score).map(x => x.color);
+            if (vivid.length) {
+              const fallback = ["#8b5cf6", "#22d3ee", "#fb7185"];
+              setAmbientColors([vivid[0] ?? fallback[0], vivid[1] ?? vivid[0] ?? fallback[1], vivid[2] ?? vivid[1] ?? vivid[0] ?? fallback[2]] as [string, string, string]);
+            }
           }
         } catch {
-          // If the image host blocks canvas sampling, keep the fallback palette.
+          // Cross-origin artwork may prohibit pixel sampling; keep the current palette.
         }
       }
-      const audio=detail.audio;
-      if(!audio) return;
-      try {
-        audioContext ??= new AudioContext();
-        if(audioContext.state==="suspended") await audioContext.resume();
-        let analyser=audioNodes.get(audio);
-        if(!analyser){
-          const source=audioContext.createMediaElementSource(audio);
-          analyser=audioContext.createAnalyser();
-          analyser.fftSize=256;
-          analyser.smoothingTimeConstant=0.78;
-          source.connect(analyser);
-          analyser.connect(audioContext.destination);
-          audioNodes.set(audio,analyser);
-        }
-        if(animationFrame) window.cancelAnimationFrame(animationFrame);
-        activeAudio=audio;
-        activeAnalyser=analyser;
-        animationFrame=window.requestAnimationFrame(animate);
-      } catch {
-        // Audio playback still works if browser audio analysis is unavailable.
-      }
+      const audio = detail.audio;
+      if (!audio) return;
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      activeAudio = audio;
+      animationFrame = window.requestAnimationFrame(animate);
     };
-    window.addEventListener("krolikov:playback",handlePlayback);
-    return ()=>{
-      window.removeEventListener("krolikov:playback",handlePlayback);
-      if(animationFrame) window.cancelAnimationFrame(animationFrame);
+    window.addEventListener("krolikov:playback", handlePlayback);
+    return () => {
+      window.removeEventListener("krolikov:playback", handlePlayback);
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
       root.style.removeProperty("--audio-energy");
       root.style.removeProperty("--audio-bass");
       root.style.removeProperty("--ray-scale");
