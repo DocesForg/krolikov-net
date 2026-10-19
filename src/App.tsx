@@ -44,7 +44,7 @@ function ArtworkPreview({ src, alt, previewUrl }: { src?: string | null; alt: st
           window.dispatchEvent(new CustomEvent("krolikov:playback", { detail: { playing: true, src, alt, audio: audioRef.current } }));
         }} />
       <button type="button" className="artwork-play" onClick={() => void togglePlayback()} aria-label={playing ? `Поставить на паузу: ${alt}` : `Прослушать фрагмент: ${alt}`} title={playing ? "Пауза" : "Слушать 30 секунд"}>
-        {playing ? <span className="pause-icon" aria-hidden="true">Ⅱ</span> : <span className="play-icon" aria-hidden="true">▶</span>}
+        {playing ? <span className="pause-icon" aria-hidden="true" /> : <span className="play-icon" aria-hidden="true">▶</span>}
       </button>
       <span className="artwork-preview-label">30 сек.</span>
     </>}
