@@ -257,3 +257,27 @@ body:after{z-index:0;inset:-25%;background:radial-gradient(circle at 50% 15%,rgb
   }
   .lyrics-card .pause-icon { font-size: 17px; }
 }
+
+.similar-card .artwork-preview {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+}
+.similar-card .artwork-play {
+  width: 34px;
+  height: 34px;
+  font-size: 13px;
+}
+.similar-card .pause-icon { font-size: 16px; }
+.similar-card .artwork-preview-label {
+  right: 3px;
+  bottom: 3px;
+  padding: 2px 4px;
+  font-size: 8px;
+}
+@media (max-width: 640px) {
+  .similar-card .artwork-preview {
+    width: 56px;
+    height: 56px;
+  }
+}
