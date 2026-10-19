@@ -225,6 +225,17 @@ docker compose up --build
 - React Redux
 - CSS
 
+### ML / Data Science
+
+- Python 3.12
+- FastAPI
+- scikit-learn (TF-IDF + cosine similarity)
+- SQLAlchemy
+
+### База данных
+
+- PostgreSQL 16
+
 ### Backend
 
 - Node.js 22
