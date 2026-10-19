@@ -102,6 +102,32 @@ function parseAgentOutput(outputText) {
   };
 }
 
+export async function recognizeAudioFromAgent(file) {
+  if (!file?.buffer?.length) throw new Error("Аудиофайл пуст");
+
+  const filename = String(file.originalname || "microphone.mp3").replace(/[\\/]/g, "_");
+  const mimeType = String(file.mimetype || "audio/mpeg");
+  const response = await getClient().responses.create({
+    prompt: { id: YANDEX_AGENT_ID },
+    input: [{
+      role: "user",
+      content: [
+        {
+          type: "input_text",
+          text: "Определи песню по приложенному музыкальному MP3-файлу. Агент должен вернуть ответ строго в формате «Исполнитель - Название песни», одной строкой, без пояснений. Если распознать невозможно, ответь ровно: НЕ УДАЛОСЬ РАСПОЗНАТЬ.",
+        },
+        {
+          type: "input_file",
+          filename,
+          file_data: `data:${mimeType};base64,${file.buffer.toString("base64")}`,
+        },
+      ],
+    }],
+  });
+
+  return parseAgentOutput(response.output_text);
+}
+
 export async function identifyTrackFromLyrics(query) {
   // Передаём Yandex Agent исходный текст пользователя без изменений.
   // Инструкции находятся в настройках самого Agent.
