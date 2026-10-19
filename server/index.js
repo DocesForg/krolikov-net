@@ -88,6 +88,17 @@ function mapRecording(recording) {
   };
 }
 
+app.use("/api/lyrics/search", (req, _res, next) => {
+  const query = String(req.query?.q || "").trim();
+  if (query) {
+    analyticsRequest("/events", {
+      method: "POST",
+      body: JSON.stringify({ query, event_type: "lyrics_search" }),
+    }).catch((error) => console.warn("Не удалось сохранить историю поиска:", error.message));
+  }
+  next();
+});
+
 app.post("/api/gemini/recognize", memoryUpload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Аудиофайл не передан" });
 
