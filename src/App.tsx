@@ -5,6 +5,39 @@ import { useAppDispatch, useAppSelector } from "./store/hooks";
 import { setError, setLyrics, setSimilar, setTrack, startLoading } from "./store/musicSlice";
 import type { LyricsSearchResult, Track } from "./types/music";
 
+
+function ArtworkPreview({ src, alt, previewUrl }: { src?: string | null; alt: string; previewUrl?: string }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+
+  const togglePlayback = async () => {
+    const audio = audioRef.current;
+    if (!audio || !previewUrl) return;
+    if (playing) {
+      audio.pause();
+      setPlaying(false);
+      return;
+    }
+    try {
+      await audio.play();
+      setPlaying(true);
+    } catch {
+      setPlaying(false);
+    }
+  };
+
+  return <div className={`artwork-preview ${src ? "" : "artwork-placeholder"}`}>
+    {src ? <img src={src} alt={alt} className="cover" /> : <div className="cover placeholder" aria-hidden="true">♪</div>}
+    {previewUrl && <>
+      <audio ref={audioRef} src={previewUrl} preload="none" onEnded={() => setPlaying(false)} onPause={() => setPlaying(false)} onPlay={() => setPlaying(true)} />
+      <button type="button" className="artwork-play" onClick={() => void togglePlayback()} aria-label={playing ? `Поставить на паузу: ${alt}` : `Прослушать фрагмент: ${alt}`} title={playing ? "Пауза" : "Слушать 30 секунд"}>
+        {playing ? <span className="pause-icon" aria-hidden="true">Ⅱ</span> : <span className="play-icon" aria-hidden="true">▶</span>}
+      </button>
+      <span className="artwork-preview-label">30 сек.</span>
+    </>}
+  </div>;
+}
+
 export default function App() {
   const dispatch = useAppDispatch();
   const { track, lyrics, similar, loading, error } = useAppSelector((s) => s.music);
@@ -58,6 +91,7 @@ export default function App() {
         ? await musicServices.recognizeFromMicrophone(file)
         : await musicServices.recognize(file);
       dispatch(setTrack(result.track));
+      if (result.track) requestPreviews([{ artist: result.track.artist, title: result.track.title }]);
       if (!result.track) dispatch(setError("Трек не найден. AcoustID и Яндекс Агент не смогли определить эту запись."));
     } catch (e) { dispatch(setError(e instanceof Error ? e.message : "Ошибка распознавания")); }
   };
@@ -83,6 +117,8 @@ export default function App() {
     try {
       const result = await musicServices.searchLyrics(query);
       setYandexResult(result.yandex);
+      if (result.yandex?.artist && result.yandex.title) requestPreviews([{ artist: result.yandex.artist, title: result.yandex.title }]);
+      requestPreviews(result.results.map((item) => ({ artist: item.artist, title: item.track })));
       dispatch(setLyrics(result.results));
       loadLyricsArtwork(result.results);
       if (result.results.length === 0) dispatch(setError("По вашему запросу ничего не найдено в LRCLIB."));
@@ -99,6 +135,8 @@ export default function App() {
     try {
       const result = await musicServices.searchByGenre(value);
       setGenreRecommendations(result.recommendations);
+      requestPreviews(result.results.map((item) => ({ artist: item.artist, title: item.track })));
+      requestPreviews(result.recommendations);
       setGenreLyrics(result.results);
       void musicServices.loadArtwork(result.results).then(setGenreLyrics);
       if (result.results.length === 0) {
@@ -118,6 +156,7 @@ export default function App() {
     try {
       const result = await musicServices.searchLyrics(source.title);
       setYandexResult(null);
+      requestPreviews(result.results.map((item) => ({ artist: item.artist, title: item.track })));
       dispatch(setLyrics(result.results));
       loadLyricsArtwork(result.results);
       if (result.results.length === 0) {
@@ -133,6 +172,7 @@ export default function App() {
     try {
       const result = await musicServices.searchSimilarLyrics(item.artist, item.track);
       setSimilarLyrics(result.results);
+      requestPreviews(result.results.map((item) => ({ artist: item.artist, title: item.track })));
       void musicServices.loadArtwork(result.results).then(setSimilarLyrics);
       if (result.results.length === 0) {
         dispatch(setError("Похожие треки найдены, но тексты для них не найдены в LRCLIB."));
@@ -243,7 +283,7 @@ export default function App() {
 
     {track && <section className="results">
       <div className="result-card">
-        {track.artworkUrl ? <img src={track.artworkUrl} alt="" className="cover" /> : <div className="cover placeholder">♪</div>}
+        <ArtworkPreview src={track.artworkUrl} alt={`${track.title} — ${track.artist}`} previewUrl={previews[previewKey(track.artist, track.title)]?.previewUrl} />
         <div className="track-info">
           <span className="eyebrow">FOUND · {track.source}</span>
           <h2>{track.title}</h2><p>{track.artist}</p>
@@ -271,9 +311,7 @@ export default function App() {
         const preview = text.length > 240 ? text.slice(0, 240) + "…" : text;
 
         return <article className={"lyrics-card " + (isExpanded ? "is-expanded" : "")} key={key}>
-          {item.artworkUrl
-            ? <img src={item.artworkUrl} alt="" className="lyrics-cover" />
-            : <div className="lyrics-cover placeholder">♪</div>}
+          <ArtworkPreview src={item.artworkUrl} alt={`${item.track} — ${item.artist}`} previewUrl={previews[previewKey(item.artist, item.track)]?.previewUrl} />
           <div className="lyrics-card-content">
             <h3>{item.track}</h3><p>{item.artist}</p>
             {item.album && <small>{item.album}</small>}
@@ -304,7 +342,7 @@ export default function App() {
           const isExpanded = expandedLyrics === key;
           const preview = text.length > 240 ? text.slice(0, 240) + "…" : text;
           return <article className={`lyrics-card ${isExpanded ? "is-expanded" : ""}`} key={key}>
-            {item.artworkUrl ? <img src={item.artworkUrl} alt="" className="lyrics-cover" /> : <div className="lyrics-cover placeholder">♪</div>}
+            <ArtworkPreview src={item.artworkUrl} alt={`${item.track} — ${item.artist}`} previewUrl={previews[previewKey(item.artist, item.track)]?.previewUrl} />
             <div className="lyrics-card-content">
               <h3>{item.track}</h3><p>{item.artist}</p>
               {item.album && <small>{item.album}</small>}
@@ -328,7 +366,7 @@ export default function App() {
           const isExpanded = expandedLyrics === key;
           const preview = text.length > 240 ? text.slice(0, 240) + "…" : text;
           return <article className={`lyrics-card ${isExpanded ? "is-expanded" : ""}`} key={key}>
-            {item.artworkUrl ? <img src={item.artworkUrl} alt="" className="lyrics-cover" /> : <div className="lyrics-cover placeholder">♪</div>}
+            <ArtworkPreview src={item.artworkUrl} alt={`${item.track} — ${item.artist}`} previewUrl={previews[previewKey(item.artist, item.track)]?.previewUrl} />
             <div className="lyrics-card-content">
               <h3>{item.track}</h3><p>{item.artist}</p>
               {item.album && <small>{item.album}</small>}
