@@ -292,3 +292,26 @@ body:after{z-index:0;inset:-25%;background:radial-gradient(circle at 50% 15%,col
 body:before,body:after{transition:opacity .12s ease,filter .12s ease}
 body:after{filter:blur(45px)}
 @media (prefers-reduced-motion: reduce){body:before,body:after{animation:none}}
+
+/* Ambient rays change color with the active cover, without pulsing or rotating. */
+@property --ambient-a {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #7655ff;
+}
+@property --ambient-b {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #00b9d6;
+}
+@property --ambient-c {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #ec4d9b;
+}
+body:before,
+body:after {
+  animation: none !important;
+  opacity: .9;
+  transition: opacity .35s ease;
+}
