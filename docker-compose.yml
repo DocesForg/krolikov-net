@@ -20,7 +20,7 @@ services:
       context: ./analytics
       dockerfile: Dockerfile
     environment:
-      DATABASE_URL: postgresql+psycopg://krolikov:krolikov@db:5432/krolikov
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-krolikov}:${POSTGRES_PASSWORD:-krolikov}@db:5432/${POSTGRES_DB:-krolikov}
     depends_on:
       db:
         condition: service_healthy
@@ -34,9 +34,9 @@ services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: krolikov
-      POSTGRES_USER: krolikov
-      POSTGRES_PASSWORD: krolikov
+      POSTGRES_DB: ${POSTGRES_DB:-krolikov}
+      POSTGRES_USER: ${POSTGRES_USER:-krolikov}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-krolikov}
     volumes:
       - krolikov-postgres:/var/lib/postgresql/data
     healthcheck:
