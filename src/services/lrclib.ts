@@ -36,7 +36,7 @@ export class LrcLibLyricsService {
     const url = new URL("/api/lyrics/search", window.location.origin);
     url.searchParams.set("q", trimmed);
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 20000);
+    const timeout = window.setTimeout(() => controller.abort(), 35000);
 
     try {
       const response = await fetch(url, { signal: controller.signal });
