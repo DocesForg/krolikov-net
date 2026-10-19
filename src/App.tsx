@@ -231,7 +231,8 @@ export default function App() {
           <span className="eyebrow">Yandex · confidence {Math.round(yandexResult.confidence * 100)}%</span>
           {yandexResult.artist && <p><strong>Исполнитель:</strong> {yandexResult.artist}</p>}
           {yandexResult.title && <p><strong>Название:</strong> {yandexResult.title}</p>}
-          {!yandexResult.artist && !yandexResult.title && <p>Песня не определена.</p>}\n          {yandexResult.artist && yandexResult.title && renderPreview(yandexResult.artist, yandexResult.title)}
+          {!yandexResult.artist && !yandexResult.title && <p>Песня не определена.</p>}
+          {yandexResult.artist && yandexResult.title && renderPreview(yandexResult.artist, yandexResult.title)}
         </div>
       </div>
     </section>}
@@ -243,7 +244,8 @@ export default function App() {
           <span className="eyebrow">FOUND · {track.source}</span>
           <h2>{track.title}</h2><p>{track.artist}</p>
           {track.album && <small>{track.album}</small>}
-          {track.timecode && <small>Фрагмент: {track.timecode}</small>}\n          {renderPreview(track.artist, track.title)}
+          {track.timecode && <small>Фрагмент: {track.timecode}</small>}
+          {renderPreview(track.artist, track.title)}
           <div className="actions">
             <button onClick={() => void findSimilar(track)}>Похожие треки</button>
             <button onClick={() => void showTrackLyrics(track)} disabled={loading}>
@@ -271,6 +273,7 @@ export default function App() {
           <div className="lyrics-card-content">
             <h3>{item.track}</h3><p>{item.artist}</p>
             {item.album && <small>{item.album}</small>}
+            {renderPreview(item.artist, item.track)}
             {text && <div className="lyrics-preview">{isExpanded ? text : preview}</div>}
             <div className="lyrics-actions">
               {text.length > 240 && <button className="lyrics-toggle" onClick={() => setExpandedLyrics(isExpanded ? null : key)}>
@@ -301,6 +304,7 @@ export default function App() {
             <div className="lyrics-card-content">
               <h3>{item.track}</h3><p>{item.artist}</p>
               {item.album && <small>{item.album}</small>}
+              {renderPreview(item.artist, item.track)}
               {text && <div className="lyrics-preview">{isExpanded ? text : preview}</div>}
               {text.length > 240 && <button className="lyrics-toggle" onClick={() => setExpandedLyrics(isExpanded ? null : key)}>
                 {isExpanded ? "Свернуть текст ↑" : "Показать весь текст ↓"}
