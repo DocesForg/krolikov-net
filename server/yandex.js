@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 import { appendFile } from "node:fs/promises";
 
 const YANDEX_BASE_URL = "https://ai.api.cloud.yandex.net/v1";
@@ -108,23 +108,34 @@ export async function recognizeAudioFromAgent(file) {
 
   const filename = String(file.originalname || "microphone.mp3").replace(/[\\/]/g, "_");
   const mimeType = String(file.mimetype || "audio/mpeg");
-  const requestBody = {
-    prompt: { id: YANDEX_AGENT_ID },
-    input: [{
-      role: "user",
-      content: [
-        {
-          type: "input_text",
-          text: "Определи песню по приложенному музыкальному MP3-файлу. Агент должен вернуть ответ строго в формате «Исполнитель - Название песни», одной строкой, без пояснений. Если распознать невозможно, ответь ровно: НЕ УДАЛОСЬ РАСПОЗНАТЬ.",
-        },
-        {
-          type: "input_file",
-          filename,
-          file_data: file.buffer.toString("base64"),
-        },
-      ],
-    }],
-  };
+  try {
+    const client = getClient();
+    // Responses API требует file_id для input_file: сначала загружаем аудио в Files API.
+    const uploadedFile = await client.files.create({
+      file: await toFile(file.buffer, filename, { type: mimeType }),
+      purpose: "assistants",
+      expires_after: {
+        anchor: "created_at",
+        seconds: 86400,
+      },
+    });
+
+    const requestBody = {
+      prompt: { id: YANDEX_AGENT_ID },
+      input: [{
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: "Определи песню по приложенному музыкальному MP3-файлу. Агент должен вернуть ответ строго в формате «Исполнитель - Название песни», одной строкой, без пояснений. Если распознать невозможно, ответь ровно: НЕ УДАЛОСЬ РАСПОЗНАТЬ.",
+          },
+          {
+            type: "input_file",
+            file_id: uploadedFile.id,
+          },
+        ],
+      }],
+    };
 
   try {
     // Временно используем fetch, чтобы записывать исходное тело ошибки Yandex API.
