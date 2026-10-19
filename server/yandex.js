@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { appendFile } from "node:fs/promises";
 
 const YANDEX_BASE_URL = "https://ai.api.cloud.yandex.net/v1";
 const YANDEX_PROJECT_ID = "b1gfj3v8keh3qobuh6rv";
@@ -107,7 +108,7 @@ export async function recognizeAudioFromAgent(file) {
 
   const filename = String(file.originalname || "microphone.mp3").replace(/[\\/]/g, "_");
   const mimeType = String(file.mimetype || "audio/mpeg");
-  const response = await getClient().responses.create({
+  const requestBody = {
     prompt: { id: YANDEX_AGENT_ID },
     input: [{
       role: "user",
@@ -123,9 +124,80 @@ export async function recognizeAudioFromAgent(file) {
         },
       ],
     }],
-  });
+  };
 
-  return parseAgentOutput(response.output_text);
+  try {
+    // Временно используем fetch, чтобы записывать исходное тело ошибки Yandex API.
+    const response = await fetch(`${YANDEX_BASE_URL}/responses`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${getApiKey()}`,
+        "OpenAI-Project": YANDEX_PROJECT_ID,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    const rawBody = await response.text();
+
+    if (!response.ok) {
+      const traceId = response.headers.get("x-server-trace-id") || "не указан";
+      const logEntry = [
+        `[${new Date().toISOString()}] Ошибка распознавания аудио через Yandex Agent`,
+        `HTTP status: ${response.status}`,
+        `Trace ID: ${traceId}`,
+        `Filename: ${filename}`,
+        `MIME type: ${mimeType}`,
+        `Response body: ${rawBody || "<пустое тело ответа>"}`,
+        "------------------------------------------------------------",
+        "",
+      ].join("\n");
+
+      try {
+        await appendFile("/app/logerror.txt", logEntry, "utf8");
+      } catch {
+        await appendFile("logerror.txt", logEntry, "utf8");
+      }
+
+      console.error("[Yandex Audio] HTTP", response.status, "Trace ID:", traceId);
+      throw new Error(`Yandex Responses API: HTTP ${response.status}; Trace ID: ${traceId}; тело ошибки записано в logerror.txt`);
+    }
+
+    let result;
+    try {
+      result = JSON.parse(rawBody);
+    } catch {
+      const logEntry = `[${new Date().toISOString()}] Ответ API не является JSON\nResponse body: ${rawBody}\n------------------------------------------------------------\n\n`;
+      try {
+        await appendFile("/app/logerror.txt", logEntry, "utf8");
+      } catch {
+        await appendFile("logerror.txt", logEntry, "utf8");
+      }
+      throw new Error("Yandex Responses API вернул некорректный JSON; подробности записаны в logerror.txt");
+    }
+
+    const outputText = typeof result.output_text === "string"
+      ? result.output_text
+      : (result.output || [])
+          .filter((item) => item.type === "message")
+          .flatMap((item) => item.content || [])
+          .filter((item) => item.type === "output_text")
+          .map((item) => item.text || "")
+          .join("\n");
+
+    return parseAgentOutput(outputText);
+  } catch (error) {
+    if (!String(error?.message || "").includes("тело ошибки записано в logerror.txt")
+      && !String(error?.message || "").includes("подробности записаны в logerror.txt")) {
+      const logEntry = `[${new Date().toISOString()}] Сбой запроса распознавания аудио\nError: ${error?.stack || error?.message || String(error)}\n------------------------------------------------------------\n\n`;
+      try {
+        await appendFile("/app/logerror.txt", logEntry, "utf8");
+      } catch {
+        await appendFile("logerror.txt", logEntry, "utf8").catch(() => {});
+      }
+    }
+    throw error;
+  }
 }
 
 export async function identifyTrackFromLyrics(query) {
