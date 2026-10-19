@@ -621,6 +621,24 @@ function isDirectLrcLibQuery(query) {
   return false;
 }
 
+app.post("/api/lyrics/artwork", async (req, res) => {
+  const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 8) : [];
+  try {
+    const results = await Promise.all(items.map(async (item, index) => {
+      const artist = String(item?.artist || "").trim();
+      const title = String(item?.track || item?.title || "").trim();
+      const album = String(item?.album || "").trim() || null;
+      const artworkUrl = item?.artworkUrl || (artist && title
+        ? await findArtwork(artist, title, album).catch(() => null)
+        : null);
+      return { index, artist, track: title, artworkUrl };
+    }));
+    res.json({ results });
+  } catch {
+    res.status(502).json({ error: "Не удалось загрузить обложки" });
+  }
+});
+
 app.get("/api/lyrics/search", async (req, res) => {
   const query = String(req.query.q || "").trim();
   if (!query) return res.status(400).json({ error: "Поисковый запрос пуст" });
