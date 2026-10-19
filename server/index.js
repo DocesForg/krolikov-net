@@ -680,6 +680,100 @@ function isDirectLrcLibQuery(query) {
   return false;
 }
 
+
+const previewCache = new Map();
+const PREVIEW_CACHE_TTL = 24 * 60 * 60 * 1000;
+
+function normalizePreviewText(value) {
+  return String(value || "")
+    .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[\\u0300-\\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+async function findTrackPreview(artist, title) {
+  const cacheKey = `${normalizePreviewText(artist)}::${normalizePreviewText(title)}`;
+  const cached = previewCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+
+  const empty = { artist, title, previewUrl: null, trackUrl: null };
+  if (!artist || !title) return empty;
+
+  try {
+    const url = new URL("https://itunes.apple.com/search");
+    url.searchParams.set("term", `${artist} ${title}`);
+    url.searchParams.set("media", "music");
+    url.searchParams.set("entity", "song");
+    url.searchParams.set("limit", "10");
+    url.searchParams.set("country", "us");
+
+    const response = await fetch(url, {
+      headers: { Accept: "application/json", "User-Agent": "Krolikov/0.3.0 (music preview lookup)" },
+      signal: AbortSignal.timeout(7000),
+    });
+    if (!response.ok) throw new Error(`iTunes Search API HTTP ${response.status}`);
+
+    const data = await response.json();
+    const wantedArtist = normalizePreviewText(artist);
+    const wantedTitle = normalizePreviewText(title);
+    const candidates = (Array.isArray(data.results) ? data.results : [])
+      .filter((item) => item?.kind === "song" && item?.previewUrl && item?.trackViewUrl)
+      .map((item) => {
+        const candidateArtist = normalizePreviewText(item.artistName);
+        const candidateTitle = normalizePreviewText(item.trackName);
+        const titleExact = candidateTitle === wantedTitle;
+        const artistExact = candidateArtist === wantedArtist;
+        const titleMatch = titleExact || (wantedTitle.length > 3 && candidateTitle.includes(wantedTitle));
+        const artistMatch = artistExact || candidateArtist.includes(wantedArtist) || wantedArtist.includes(candidateArtist);
+        return {
+          item,
+          score: (titleExact ? 10 : titleMatch ? 4 : 0) + (artistExact ? 8 : artistMatch ? 3 : 0),
+          titleMatch,
+          artistMatch,
+        };
+      })
+      .filter((candidate) => candidate.titleMatch && candidate.artistMatch)
+      .sort((a, b) => b.score - a.score);
+
+    const best = candidates[0]?.item;
+    const result = best
+      ? {
+          artist,
+          title,
+          previewUrl: String(best.previewUrl).replace(/^http:\\/\\//i, "https://"),
+          trackUrl: String(best.trackViewUrl).replace(/^http:\\/\\//i, "https://"),
+        }
+      : empty;
+    previewCache.set(cacheKey, { value: result, expiresAt: Date.now() + PREVIEW_CACHE_TTL });
+    return result;
+  } catch (error) {
+    console.warn("Не удалось найти 30-секундный фрагмент в iTunes:", error.message);
+    return empty;
+  }
+}
+
+app.post("/api/music/previews", async (req, res) => {
+  const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 8) : [];
+  try {
+    // Ограничиваем параллельность, чтобы не создавать всплески запросов к iTunes Search API.
+    const results = [];
+    for (let start = 0; start < items.length; start += 2) {
+      const batch = items.slice(start, start + 2);
+      results.push(...await Promise.all(batch.map((item) =>
+        findTrackPreview(
+          String(item?.artist || "").trim(),
+          String(item?.title || item?.track || "").trim(),
+        )
+      )));
+    }
+    res.json({ results });
+  } catch {
+    res.status(502).json({ error: "Не удалось получить музыкальные предпрослушивания" });
+  }
+});
+
 app.post("/api/lyrics/artwork", async (req, res) => {
   const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 8) : [];
   try {
