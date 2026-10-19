@@ -5,8 +5,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import acoustid from "acoustid";
-import { analyzeTrack, recognizeAudio } from "./gemini.js";
-import { findSimilarTracksFromAgent, generativeSearch, identifyTrackFromLyrics, recommendTracksByGenre } from "./yandex.js";
+import { spawn } from "node:child_process";
+import { analyzeTrack } from "./gemini.js";
+import { findSimilarTracksFromAgent, generativeSearch, identifyTrackFromLyrics, recommendTracksByGenre, recognizeAudioFromAgent } from "./yandex.js";
 
 const app = express();
 const upload = multer({
@@ -88,59 +89,129 @@ function mapRecording(recording) {
   };
 }
 
-app.post("/api/gemini/recognize", memoryUpload.single("file"), async (req, res) => {
+app.use("/api/lyrics/search", (req, _res, next) => {
+  const query = String(req.query?.q || "").trim();
+  if (query) {
+    analyticsRequest("/events", {
+      method: "POST",
+      body: JSON.stringify({ query, event_type: "lyrics_search" }),
+    }).catch((error) => console.warn("Не удалось сохранить историю поиска:", error.message));
+  }
+  next();
+});
+
+async function convertAudioToMp3(inputBuffer) {
+  return await new Promise((resolve, reject) => {
+    const ffmpeg = spawn("ffmpeg", [
+      "-hide_banner", "-loglevel", "error",
+      "-i", "pipe:0",
+      "-vn", "-codec:a", "libmp3lame", "-b:a", "128k",
+      "-f", "mp3", "pipe:1",
+    ]);
+    const output = [];
+    let errorOutput = "";
+    ffmpeg.stdout.on("data", (chunk) => output.push(chunk));
+    ffmpeg.stderr.on("data", (chunk) => { errorOutput += chunk.toString(); });
+    ffmpeg.on("error", (error) => reject(new Error(`Не удалось запустить конвертацию MP3: ${error.message}`)));
+    ffmpeg.on("close", (code) => {
+      if (code === 0 && output.length) resolve(Buffer.concat(output));
+      else reject(new Error(errorOutput.trim() || "Не удалось преобразовать запись в MP3"));
+    });
+    ffmpeg.stdin.on("error", () => {});
+    ffmpeg.stdin.end(inputBuffer);
+  });
+}
+
+app.post("/api/yandex/recognize", memoryUpload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Аудиофайл не передан" });
 
   try {
-    const result = await recognizeAudio(req.file);
+    // MediaRecorder обычно создаёт WebM/Opus. Конвертируем запись в настоящий MP3
+    // на сервере и передаём агенту именно MP3, а не исходный поток микрофона.
+    const mp3Buffer = await convertAudioToMp3(req.file.buffer);
+    const mp3File = {
+      buffer: mp3Buffer,
+      originalname: "microphone-recording.mp3",
+      mimetype: "audio/mpeg",
+    };
+    const result = await recognizeAudioFromAgent(mp3File);
     const track = result?.found && result?.artist && result?.title
       ? {
           artist: String(result.artist),
           title: String(result.title),
-          album: result.album ? String(result.album) : null,
+          album: null,
           artworkUrl: await findArtwork(String(result.artist), String(result.title)),
-          source: "Gemini Audio AI",
+          source: "Yandex AI Studio Agent",
         }
       : null;
     res.json({ track, confidence: result?.confidence ?? null });
   } catch (error) {
+    console.error("Ошибка распознавания аудио через Yandex Agent:", error);
     res.status(502).json({
-      error: error instanceof Error ? error.message : "Gemini не смог распознать аудио",
+      error: error instanceof Error ? error.message : "Яндекс Агент не смог распознать аудио",
     });
   }
 });
 
 async function enrichLyricsResults(items) {
   const results = (Array.isArray(items) ? items : []).slice(0, 20);
+  const basicResults = results.map((item) => ({
+    ...item,
+    album: item?.albumName || null,
+    artworkUrl: item?.artworkUrl || null,
+  }));
 
-  // MusicBrainz ограничивает частоту запросов, поэтому не отправляем 20 запросов одновременно.
-  // Первые 8 результатов соответствуют количеству карточек, которые показывает frontend.
-  const enriched = [];
-  for (let start = 0; start < results.length; start += 2) {
-    const batch = results.slice(start, start + 2);
-    const batchResults = await Promise.all(batch.map(async (item) => {
-      const artist = String(item?.artistName || "").trim();
-      const title = String(item?.trackName || "").trim();
-      const album = String(item?.albumName || "").trim() || null;
-      const artworkUrl = artist && title
-        ? await findArtwork(artist, title, album).catch(() => null)
-        : null;
+  // Обложки — дополнительная информация: они не должны задерживать показ текста.
+  // Ограничиваем ожидание всей операции, а при медленном MusicBrainz сразу
+  // возвращаем результаты LRCLIB без обложек.
+  const enrichment = (async () => {
+    const enriched = [];
+    const artworkCandidates = results.slice(0, 4);
 
-      return {
-        ...item,
-        album: item?.albumName || null,
-        artworkUrl,
-      };
-    }));
+    for (let start = 0; start < artworkCandidates.length; start += 2) {
+      const batch = artworkCandidates.slice(start, start + 2);
+      const batchResults = await Promise.all(batch.map(async (item) => {
+        const artist = String(item?.artistName || "").trim();
+        const title = String(item?.trackName || "").trim();
+        const album = String(item?.albumName || "").trim() || null;
+        const artworkUrl = artist && title
+          ? await findArtwork(artist, title, album).catch(() => null)
+          : null;
 
-    enriched.push(...batchResults);
-    if (enriched.length >= 8) {
-      enriched.push(...results.slice(enriched.length));
-      break;
+        return {
+          ...item,
+          album: item?.albumName || null,
+          artworkUrl,
+        };
+      }));
+      enriched.push(...batchResults);
     }
-  }
 
-  return enriched;
+    return [
+      ...enriched,
+      ...basicResults.slice(enriched.length),
+    ];
+  })();
+
+  let timeoutId;
+  const timeout = new Promise((resolve) => {
+    timeoutId = setTimeout(() => resolve(basicResults), 2500);
+  });
+
+  try {
+    return await Promise.race([enrichment, timeout]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+// LRCLIB может ограничивать частые запросы. Делаем небольшой интервал между
+// всеми запросами, включая повторные попытки.
+let lastLrcLibRequestAt = 0;
+async function waitForLrcLibSlot() {
+  const waitMs = Math.max(0, lastLrcLibRequestAt + 850 - Date.now());
+  if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
+  lastLrcLibRequestAt = Date.now();
 }
 
 async function searchLrcLib(query) {
@@ -148,14 +219,15 @@ async function searchLrcLib(query) {
   url.searchParams.set("q", query);
 
   let lastStatus = 503;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
+      await waitForLrcLibSlot();
       const response = await fetch(url, {
         headers: {
           "User-Agent": "Krolikov/0.2.0 (https://github.com/DocesForg/krolikov-net)",
           Accept: "application/json",
         },
-        signal: AbortSignal.timeout(7000),
+        signal: AbortSignal.timeout(9000),
       });
 
       lastStatus = response.status;
@@ -167,10 +239,10 @@ async function searchLrcLib(query) {
       if (![429, 500, 502, 503, 504].includes(response.status)) break;
 
       const retryAfter = Number(response.headers.get("retry-after") || "0");
-      const waitMs = Math.min(Math.max(retryAfter * 1000, 1000 * (attempt + 1)), 4000);
+      const waitMs = Math.min(Math.max(retryAfter * 1000, 1200 * (attempt + 1)), 6000);
       await new Promise((resolve) => setTimeout(resolve, waitMs));
     } catch {
-      if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 1200 * (attempt + 1)));
     }
   }
 
@@ -184,17 +256,34 @@ async function getLrcLibTrack(artist, title) {
   url.searchParams.set("artist_name", artist);
   url.searchParams.set("track_name", title);
 
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": "Krolikov/0.2.0 (https://github.com/DocesForg/krolikov-net)",
-      Accept: "application/json",
-    },
-    signal: AbortSignal.timeout(7000),
-  });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await waitForLrcLibSlot();
+      const response = await fetch(url, {
+        headers: {
+          "User-Agent": "Krolikov/0.2.0 (https://github.com/DocesForg/krolikov-net)",
+          Accept: "application/json",
+        },
+        signal: AbortSignal.timeout(9000),
+      });
 
-  if (!response.ok) return null;
-  const item = await response.json();
-  return item && typeof item === "object" ? item : null;
+      if (response.ok) {
+        const item = await response.json();
+        return item && typeof item === "object" ? item : null;
+      }
+
+      if (response.status === 404) return null;
+      if (![429, 500, 502, 503, 504].includes(response.status)) return null;
+
+      const retryAfter = Number(response.headers.get("retry-after") || "0");
+      const waitMs = Math.min(Math.max(retryAfter * 1000, 1200 * (attempt + 1)), 6000);
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    } catch {
+      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 1200 * (attempt + 1)));
+    }
+  }
+
+  return null;
 }
 
 
@@ -591,6 +680,118 @@ function isDirectLrcLibQuery(query) {
   return false;
 }
 
+
+const previewCache = new Map();
+const PREVIEW_CACHE_TTL = 24 * 60 * 60 * 1000;
+
+function normalizePreviewText(value) {
+  return String(value || "")
+    .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
+async function findTrackPreview(artist, title) {
+  const cacheKey = `${normalizePreviewText(artist)}::${normalizePreviewText(title)}`;
+  const cached = previewCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+
+  const empty = { artist, title, previewUrl: null, trackUrl: null };
+  if (!artist || !title) return empty;
+
+  try {
+    const url = new URL("https://itunes.apple.com/search");
+    url.searchParams.set("term", `${artist} ${title}`);
+    url.searchParams.set("media", "music");
+    url.searchParams.set("entity", "song");
+    url.searchParams.set("limit", "10");
+    url.searchParams.set("country", "us");
+
+    const response = await fetch(url, {
+      headers: { Accept: "application/json", "User-Agent": "Krolikov/0.3.0 (music preview lookup)" },
+      signal: AbortSignal.timeout(7000),
+    });
+    if (!response.ok) throw new Error(`iTunes Search API HTTP ${response.status}`);
+
+    const data = await response.json();
+    const wantedArtist = normalizePreviewText(artist);
+    const wantedTitle = normalizePreviewText(title);
+    const candidates = (Array.isArray(data.results) ? data.results : [])
+      .filter((item) => item?.kind === "song" && item?.previewUrl && item?.trackViewUrl)
+      .map((item) => {
+        const candidateArtist = normalizePreviewText(item.artistName);
+        const candidateTitle = normalizePreviewText(item.trackName);
+        const titleExact = candidateTitle === wantedTitle;
+        const artistExact = candidateArtist === wantedArtist;
+        const titleMatch = titleExact || (wantedTitle.length > 3 && candidateTitle.includes(wantedTitle));
+        const artistMatch = artistExact || candidateArtist.includes(wantedArtist) || wantedArtist.includes(candidateArtist);
+        return {
+          item,
+          score: (titleExact ? 10 : titleMatch ? 4 : 0) + (artistExact ? 8 : artistMatch ? 3 : 0),
+          titleMatch,
+          artistMatch,
+        };
+      })
+      .filter((candidate) => candidate.titleMatch && candidate.artistMatch)
+      .sort((a, b) => b.score - a.score);
+
+    const best = candidates[0]?.item;
+    const result = best
+      ? {
+          artist,
+          title,
+          previewUrl: String(best.previewUrl).replace(/^http:/i, "https:"),
+          trackUrl: String(best.trackViewUrl).replace(/^http:/i, "https:"),
+        }
+      : empty;
+    previewCache.set(cacheKey, { value: result, expiresAt: Date.now() + PREVIEW_CACHE_TTL });
+    return result;
+  } catch (error) {
+    console.warn("Не удалось найти 30-секундный фрагмент в iTunes:", error.message);
+    return empty;
+  }
+}
+
+app.post("/api/music/previews", async (req, res) => {
+  const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 8) : [];
+  try {
+    // Ограничиваем параллельность, чтобы не создавать всплески запросов к iTunes Search API.
+    const results = [];
+    for (let start = 0; start < items.length; start += 2) {
+      const batch = items.slice(start, start + 2);
+      results.push(...await Promise.all(batch.map((item) =>
+        findTrackPreview(
+          String(item?.artist || "").trim(),
+          String(item?.title || item?.track || "").trim(),
+        )
+      )));
+    }
+    res.json({ results });
+  } catch {
+    res.status(502).json({ error: "Не удалось получить музыкальные предпрослушивания" });
+  }
+});
+
+app.post("/api/lyrics/artwork", async (req, res) => {
+  const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 8) : [];
+  try {
+    const results = await Promise.all(items.map(async (item, index) => {
+      const artist = String(item?.artist || "").trim();
+      const title = String(item?.track || item?.title || "").trim();
+      const album = String(item?.album || "").trim() || null;
+      const artworkUrl = item?.artworkUrl || (artist && title
+        ? await findArtwork(artist, title, album).catch(() => null)
+        : null);
+      return { index, artist, track: title, artworkUrl };
+    }));
+    res.json({ results });
+  } catch {
+    res.status(502).json({ error: "Не удалось загрузить обложки" });
+  }
+});
+
 app.get("/api/lyrics/search", async (req, res) => {
   const query = String(req.query.q || "").trim();
   if (!query) return res.status(400).json({ error: "Поисковый запрос пуст" });
@@ -678,19 +879,22 @@ app.post("/api/lyrics/genre", async (req, res) => {
     const recommendations = await recommendTracksByGenre(genre);
     const results = [];
 
-    for (const recommendation of recommendations) {
-      let item = await getLrcLibTrack(recommendation.artist, recommendation.title);
+    for (const recommendation of recommendations.slice(0, 8)) {
+      try {
+        let item = await getLrcLibTrack(recommendation.artist, recommendation.title);
 
-      if (!item) {
-        const fallback = await searchLrcLib(`${recommendation.artist} ${recommendation.title}`);
-        item = fallback.find((candidate) =>
-          String(candidate?.artistName || "").toLowerCase() === recommendation.artist.toLowerCase()
-          && String(candidate?.trackName || "").toLowerCase() === recommendation.title.toLowerCase()
-        ) || null;
-      }
+        if (!item) {
+          const fallback = await searchLrcLib(`${recommendation.artist} ${recommendation.title}`);
+          item = fallback.find((candidate) =>
+            String(candidate?.artistName || "").toLowerCase() === recommendation.artist.toLowerCase()
+            && String(candidate?.trackName || "").toLowerCase() === recommendation.title.toLowerCase()
+          ) || null;
+        }
 
-      if (item) {
-        results.push(item);
+        if (item) results.push(item);
+      } catch (error) {
+        // Не прерываем весь подбор из-за временного отказа LRCLIB для одной песни.
+        console.warn("LRCLIB пропустил рекомендацию:", recommendation.title, error.message);
       }
     }
 
@@ -715,19 +919,22 @@ app.post("/api/lyrics/similar", async (req, res) => {
     const recommendations = await findSimilarTracksFromAgent(artist, title);
     const results = [];
 
-    for (const recommendation of recommendations) {
-      let item = await getLrcLibTrack(recommendation.artist, recommendation.title);
+    for (const recommendation of recommendations.slice(0, 8)) {
+      try {
+        let item = await getLrcLibTrack(recommendation.artist, recommendation.title);
 
-      if (!item) {
-        const fallback = await searchLrcLib(`${recommendation.artist} ${recommendation.title}`);
-        item = fallback.find((candidate) =>
-          String(candidate?.artistName || "").toLowerCase() === recommendation.artist.toLowerCase()
-          && String(candidate?.trackName || "").toLowerCase() === recommendation.title.toLowerCase()
-        ) || fallback[0] || null;
-      }
+        if (!item) {
+          const fallback = await searchLrcLib(`${recommendation.artist} ${recommendation.title}`);
+          item = fallback.find((candidate) =>
+            String(candidate?.artistName || "").toLowerCase() === recommendation.artist.toLowerCase()
+            && String(candidate?.trackName || "").toLowerCase() === recommendation.title.toLowerCase()
+          ) || fallback[0] || null;
+        }
 
-      if (item) {
-        results.push(item);
+        if (item) results.push(item);
+      } catch (error) {
+        // Остальные похожие треки продолжают обрабатываться.
+        console.warn("LRCLIB пропустил похожий трек:", recommendation.title, error.message);
       }
     }
 
@@ -805,6 +1012,84 @@ app.post("/api/recognize/file", upload.single("file"), async (req, res) => {
     });
   } finally {
     await fs.rm(req.file.path, { force: true }).catch(() => undefined);
+  }
+});
+
+const analyticsServiceUrl = (process.env.ANALYTICS_SERVICE_URL || "http://analytics:8000").replace(/\/$/, "");
+
+async function analyticsRequest(endpoint, options = {}) {
+  const response = await fetch(`${analyticsServiceUrl}${endpoint}`, {
+    ...options,
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    signal: AbortSignal.timeout(5000),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(data.detail || data.error || "Сервис музыкальной аналитики недоступен");
+    error.status = response.status;
+    throw error;
+  }
+  return data;
+}
+
+app.post("/api/analytics/events", async (req, res) => {
+  const query = String(req.body?.query || "").trim();
+  if (!query) return res.status(400).json({ error: "Текст запроса не передан" });
+  try {
+    const result = await analyticsRequest("/events", {
+      method: "POST",
+      body: JSON.stringify({
+        query,
+        event_type: String(req.body?.eventType || "search"),
+        artist: req.body?.artist ? String(req.body.artist) : null,
+        title: req.body?.title ? String(req.body.title) : null,
+      }),
+    });
+    res.status(201).json(result);
+  } catch (error) {
+    res.status(503).json({ error: error instanceof Error ? error.message : "Ошибка аналитики" });
+  }
+});
+
+app.get("/api/analytics/history", async (_req, res) => {
+  try {
+    res.json(await analyticsRequest("/history?limit=30"));
+  } catch (error) {
+    res.status(503).json({ error: error instanceof Error ? error.message : "История недоступна" });
+  }
+});
+
+app.post("/api/analytics/tracks", async (req, res) => {
+  const artist = String(req.body?.artist || "").trim();
+  const title = String(req.body?.title || "").trim();
+  if (!artist || !title) return res.status(400).json({ error: "Нужны исполнитель и название трека" });
+  try {
+    const result = await analyticsRequest("/tracks", {
+      method: "POST",
+      body: JSON.stringify({
+        artist,
+        title,
+        album: req.body?.album ? String(req.body.album) : null,
+        lyrics: String(req.body?.lyrics || "").slice(0, 50000),
+        source: String(req.body?.source || "web"),
+      }),
+    });
+    res.status(201).json(result);
+  } catch (error) {
+    res.status(503).json({ error: error instanceof Error ? error.message : "Не удалось сохранить трек" });
+  }
+});
+
+app.post("/api/ml/similar", async (req, res) => {
+  const query = String(req.body?.query || "").trim();
+  if (query.length < 3) return res.status(400).json({ error: "Передайте текст не короче 3 символов" });
+  try {
+    res.json(await analyticsRequest("/similar", {
+      method: "POST",
+      body: JSON.stringify({ query, limit: Number(req.body?.limit || 5) }),
+    }));
+  } catch (error) {
+    res.status(503).json({ error: error instanceof Error ? error.message : "ML-рекомендации недоступны" });
   }
 });
 

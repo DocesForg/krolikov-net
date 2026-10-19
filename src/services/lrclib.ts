@@ -36,7 +36,7 @@ export class LrcLibLyricsService {
     const url = new URL("/api/lyrics/search", window.location.origin);
     url.searchParams.set("q", trimmed);
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 20000);
+    const timeout = window.setTimeout(() => controller.abort(), 35000);
 
     try {
       const response = await fetch(url, { signal: controller.signal });
@@ -64,6 +64,28 @@ export class LrcLibLyricsService {
       throw error;
     } finally {
       window.clearTimeout(timeout);
+    }
+  }
+
+  async loadArtwork(items: import("../types/music").Lyrics[]) {
+    if (!items.length) return items;
+    try {
+      const response = await fetch("/api/lyrics/artwork", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: items.map((item) => ({
+          artist: item.artist, track: item.track, album: item.album, artworkUrl: item.artworkUrl,
+        })) }),
+      });
+      if (!response.ok) return items;
+      const data = await response.json() as { results?: { index: number; artworkUrl?: string | null }[] };
+      const artwork = new Map((data.results || []).map((item) => [item.index, item.artworkUrl || null]));
+      return items.map((item, index) => ({
+        ...item,
+        artworkUrl: item.artworkUrl || artwork.get(index) || null,
+      }));
+    } catch {
+      return items;
     }
   }
 

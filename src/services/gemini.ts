@@ -5,9 +5,9 @@ export class GeminiMusicService {
     const body = new FormData();
     body.append("file", file);
 
-    const response = await fetch("/api/gemini/recognize", { method: "POST", body });
+    const response = await fetch("/api/yandex/recognize", { method: "POST", body });
     const data = await response.json() as { track?: Track | null; error?: string };
-    if (!response.ok) throw new Error(data.error || `Gemini HTTP ${response.status}`);
+    if (!response.ok) throw new Error(data.error || `Yandex Agent HTTP ${response.status}`);
     return { track: data.track ?? null };
   }
 
