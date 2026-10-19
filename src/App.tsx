@@ -328,6 +328,7 @@ export default function App() {
             <div className="lyrics-card-content">
               <h3>{item.track}</h3><p>{item.artist}</p>
               {item.album && <small>{item.album}</small>}
+              {renderPreview(item.artist, item.track)}
               {text && <div className="lyrics-preview">{isExpanded ? text : preview}</div>}
               {text.length > 240 && <button className="lyrics-toggle" onClick={() => setExpandedLyrics(isExpanded ? null : key)}>
                 {isExpanded ? "Свернуть текст ↑" : "Показать весь текст ↓"}
