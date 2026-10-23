@@ -658,3 +658,23 @@ body:after {
 @media(prefers-reduced-motion:reduce){
   .retro-mode .hero h1 .font-switch-title .title-roulette{animation:none!important;font-family:Tahoma,"MS Sans Serif",Arial,sans-serif!important}
 }
+
+
+/* Preserve the original two-line heading in the standard design. */
+.title-line-break{display:block}
+.retro-mode .hero h1{
+  box-sizing:content-box;
+  padding-top:48px;
+  min-height:2.04em;
+}
+.retro-mode .hero h1 .music-disc-icon{
+  position:absolute;
+  left:50%;
+  top:0;
+  margin:0;
+  transform:translateX(-50%);
+}
+.retro-mode .hero h1 .title-line-break{display:none}
+@media(max-width:640px){
+  .retro-mode .hero h1{padding-top:40px}
+}
