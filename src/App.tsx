@@ -406,7 +406,7 @@ export default function App() {
     {loading && <section className="message">Ищем музыку…</section>}
 
     {yandexResult && <section className="results">
-      <div className="section-heading"><span>YANDEX AGENT</span><h2><img className="retro-inline-icon sound-computer-icon" src="/winico/Sound%20computer.ico" alt="" aria-hidden="true" />Результат Yandex</h2></div>
+      <div className="section-heading"><span>YANDEX AGENT</span><div className="retro-window-controls" aria-hidden="true"><span>_</span><span>□</span><span>×</span></div><h2><img className="retro-inline-icon sound-computer-icon" src="/winico/Sound%20computer.ico" alt="" aria-hidden="true" />Результат Yandex</h2></div>
       <div className="result-card">
         <div className="track-info">
           <span className="eyebrow">Yandex · confidence {Math.round(yandexResult.confidence * 100)}%</span>
@@ -440,7 +440,7 @@ export default function App() {
     </section>}
 
     {lyrics.length > 0 && <section className="results">
-      <div className="section-heading"><span>LYRICS</span><h2>Результаты по тексту</h2></div>
+      <div className="section-heading"><span>LYRICS</span><div className="retro-window-controls" aria-hidden="true"><span>_</span><span>□</span><span>×</span></div><h2>Результаты по тексту</h2></div>
       <div className={"lyrics-grid " + (lyrics.length === 1 ? "is-single" : "")}>{lyrics.slice(0, 8).map((item, i) => {
         const key = item.artist + "-" + item.track + "-" + i;
         const isExpanded = expandedLyrics === key;
@@ -468,7 +468,7 @@ export default function App() {
     </section>}
 
     {genreLyrics.length > 0 && <section className="results">
-      <div className="section-heading"><span>YANDEX · LRCLIB</span><h2>Песни в жанре «{genre}»</h2></div>
+      <div className="section-heading"><span>YANDEX · LRCLIB</span><div className="retro-window-controls" aria-hidden="true"><span>_</span><span>□</span><span>×</span></div><h2>Песни в жанре «{genre}»</h2></div>
       {genreRecommendations.length > 0 && <div className="genre-recommendations">
         {genreRecommendations.map((item, i) => <span key={`${item.artist}-${item.title}-${i}`}>{item.artist} — {item.title}</span>)}
       </div>}
@@ -495,7 +495,7 @@ export default function App() {
     </section>}
 
     {similarLyrics.length > 0 && <section className="results">
-      <div className="section-heading"><span>SIMILAR LYRICS</span><h2>Похожие треки с текстом</h2></div>
+      <div className="section-heading"><span>SIMILAR LYRICS</span><div className="retro-window-controls" aria-hidden="true"><span>_</span><span>□</span><span>×</span></div><h2>Похожие треки с текстом</h2></div>
       <div className="lyrics-grid">
         {similarLyrics.map((item, i) => {
           const key = `similar-${item.artist}-${item.track}-${i}`;
@@ -519,7 +519,7 @@ export default function App() {
     </section>}
 
     {similar.length > 0 && <section className="results">
-      <div className="section-heading"><span>DISCOVERY</span><h2>Похожие треки</h2></div>
+      <div className="section-heading"><span>DISCOVERY</span><div className="retro-window-controls" aria-hidden="true"><span>_</span><span>□</span><span>×</span></div><h2>Похожие треки</h2></div>
       <div className="similar-grid">{similar.map((item, i) =>
         <article className="similar-card" key={`${item.artist}-${item.title}-${i}`}>
           <ArtworkPreview src={item.artworkUrl} alt={`${item.title} — ${item.artist}`} previewUrl={previews[previewKey(item.artist, item.title)]?.previewUrl} />
