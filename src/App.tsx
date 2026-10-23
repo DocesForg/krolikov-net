@@ -485,7 +485,7 @@ export default function App() {
               {renderPreview(item.artist, item.track)}
               {text && <div className="lyrics-preview">{isExpanded ? text : preview}</div>}
               {text.length > 240 && <button className="lyrics-toggle" onClick={() => setExpandedLyrics(isExpanded ? null : key)}>
-                {isExpanded ? "Свернуть текст ↑" : "Показать весь текст ↓"}
+                {isExpanded ? "Свернуть текст ↑" : <><img className="retro-inline-icon button-icon" src="/winico/notepad%20document.ico" alt="" aria-hidden="true" />Показать весь текст ↓</> }
               </button>}
             </div>
           </article>;
@@ -509,7 +509,7 @@ export default function App() {
               {renderPreview(item.artist, item.track)}
               {text && <div className="lyrics-preview">{isExpanded ? text : preview}</div>}
               {text.length > 240 && <button className="lyrics-toggle" onClick={() => setExpandedLyrics(isExpanded ? null : key)}>
-                {isExpanded ? "Свернуть текст ↑" : "Показать весь текст ↓"}
+                {isExpanded ? "Свернуть текст ↑" : <><img className="retro-inline-icon button-icon" src="/winico/notepad%20document.ico" alt="" aria-hidden="true" />Показать весь текст ↓</> }
               </button>}
             </div>
           </article>;
