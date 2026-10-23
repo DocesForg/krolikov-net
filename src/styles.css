@@ -388,7 +388,7 @@ body:after {
 .retro-mode .button-icon{width:18px;height:18px;margin-right:6px}
 .retro-mode .folder-icon{width:32px;height:32px}
 .retro-mode .upload-fallback{display:none}
-.retro-mode .retro-artwork-corner{display:block;position:absolute;z-index:3;left:5px;bottom:5px;width:18px;height:18px;object-fit:contain;padding:2px;background:#c0c0c0;border:1px solid;border-color:#fff #404040 #404040 #fff}
+.retro-mode .retro-artwork-corner{display:block;position:absolute;z-index:3;left:5px;bottom:5px;width:24px;height:24px;object-fit:fill;object-position:center;padding:0;background:transparent;border:0;image-rendering:pixelated;filter:drop-shadow(0 1px 1px rgba(0,0,0,.45))}
 .retro-mode .artwork-preview{position:relative}
 .retro-mode .hero h1{display:block}
 .retro-mode .hero h1 .music-disc-icon{position:relative}
@@ -458,4 +458,28 @@ body:after {
 }
 @media(max-width:640px){
   .retro-mode .results .section-heading>span:first-child{margin:-2px -2px 0;}
+}
+
+
+/* A soft radial wipe makes the selected visual style feel like it is taking over. */
+.theme-transitioning::after{
+  content:"";
+  position:fixed;
+  z-index:9999;
+  inset:0;
+  pointer-events:none;
+  background:#008080;
+  clip-path:circle(0 at calc(100% - 82px) 34px);
+  animation:theme-takeover .9s cubic-bezier(.2,.75,.25,1) both;
+}
+.theme-transitioning:not(.retro-mode)::after{
+  background:radial-gradient(circle at 70% 25%,#222035 0%,#090b0f 60%);
+}
+@keyframes theme-takeover{
+  0%{clip-path:circle(0 at calc(100% - 82px) 34px);opacity:.92}
+  65%{opacity:1}
+  100%{clip-path:circle(150vmax at calc(100% - 82px) 34px);opacity:1}
+}
+@media(prefers-reduced-motion:reduce){
+  .theme-transitioning::after{animation:none;opacity:0}
 }
