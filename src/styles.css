@@ -513,14 +513,21 @@ body:after {
 }
 
 
-/* Fast, playful type roulette for the main discovery slogan. */
-.font-switch-title{
-  animation: title-font-roulette 1.65s steps(1,end) infinite;
-  will-change: font-family;
+/* Keep the original heading in the standard theme; animate typography only in retro mode. */
+.font-switch-title{font-family:inherit}
+.retro-mode .hero h1 .font-switch-title{
+  display:inline-block;
+  box-sizing:border-box;
+  width:100%;
+  height:1.02em;
+  line-height:1.02;
+  white-space:nowrap;
+  animation:title-font-roulette 2.8s steps(1,end) infinite,title-font-soft-fade 2.8s ease-in-out infinite;
+  will-change:font-family,opacity,filter;
 }
-.font-switch-title:nth-of-type(2){animation-delay:-.11s}
+.retro-mode .hero h1 .font-switch-title:nth-of-type(2){animation-delay:-.14s,-.14s}
 @keyframes title-font-roulette{
-  0%{font-family:Arial,sans-serif}
+  0%{font-family:Tahoma,sans-serif}
   8%{font-family:Georgia,serif}
   16%{font-family:"Courier New",monospace}
   24%{font-family:"Trebuchet MS",sans-serif}
@@ -534,6 +541,10 @@ body:after {
   88%{font-family:Verdana,sans-serif}
   96%{font-family:cursive}
 }
+@keyframes title-font-soft-fade{
+  0%,7%,9%,15%,17%,23%,25%,31%,33%,39%,41%,47%,49%,55%,57%,63%,65%,71%,73%,79%,81%,87%,89%,95%,97%,100%{opacity:1;filter:blur(0)}
+  8%,16%,24%,32%,40%,48%,56%,64%,72%,80%,88%,96%{opacity:.72;filter:blur(.35px)}
+}
 .retro-mode .section-heading-icon{
   width:24px;
   height:24px;
@@ -542,5 +553,5 @@ body:after {
   object-fit:contain;
 }
 @media(prefers-reduced-motion:reduce){
-  .font-switch-title{animation:none!important;font-family:Tahoma,"MS Sans Serif",Arial,sans-serif!important}
+  .retro-mode .hero h1 .font-switch-title{animation:none!important;font-family:Tahoma,"MS Sans Serif",Arial,sans-serif!important}
 }
