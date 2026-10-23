@@ -358,7 +358,7 @@ export default function App() {
 
     <section className="hero">
       <p className="eyebrow">AUDIO · LYRICS · DISCOVERY</p>
-      <h1><img className="retro-inline-icon music-disc-icon" src="/winico/Music%20Disc.ico" alt="" aria-hidden="true" /><span className="font-switch-title"><span className="title-stable">Найди музыку</span><span className="title-roulette" aria-hidden="true">Найди музыку</span></span><span className="font-switch-title"><span className="title-stable">по любому следу.</span><span className="title-roulette" aria-hidden="true">по любому следу.</span></span></h1>
+      <h1><img className="retro-inline-icon music-disc-icon" src="/winico/Music%20Disc.ico" alt="" aria-hidden="true" /><span className="font-switch-title"><span className="title-stable">Найди музыку</span><span className="title-roulette" aria-hidden="true">Найди музыку</span></span><br className="title-line-break" /><span className="font-switch-title"><span className="title-stable">по любому следу.</span><span className="title-roulette" aria-hidden="true">по любому следу.</span></span></h1>
       <p className="subtitle">Загрузи фрагмент, запиши его с микрофона или найди песню по тексту.</p>
 
       <div className={`dropzone ${dragging ? "is-dragging" : ""}`}
