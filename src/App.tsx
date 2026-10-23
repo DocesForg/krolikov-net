@@ -71,6 +71,7 @@ export default function App() {
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const [ambientColors, setAmbientColors] = useState<[string, string, string]>(BASE_AMBIENT_COLORS);
   const [retroMode, setRetroMode] = useState(false);
+  const [themeTransition, setThemeTransition] = useState(false);
 
   useEffect(() => {
     let activeAudio: HTMLAudioElement | null = null;
@@ -347,10 +348,10 @@ export default function App() {
   const onDrop = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); setDragging(false); onFile(e.dataTransfer.files[0]); };
   const onInput = (e: ChangeEvent<HTMLInputElement>) => onFile(e.target.files?.[0]);
 
-  return <main className={`app-shell ${isPreviewPlaying ? "is-preview-playing" : ""} ${retroMode ? "retro-mode" : ""}`}>
+  return <main className={`app-shell ${isPreviewPlaying ? "is-preview-playing" : ""} ${retroMode ? "retro-mode" : ""} ${themeTransition ? "theme-transitioning" : ""}`}>
     <header className="topbar">
       <div className="brand"><img className="brand-mark" src="/krolikov-logo.png" alt="" aria-hidden="true" /><span>krolikov.net</span></div>
-      <button type="button" className={`theme-floppy ${retroMode ? "is-active" : ""}`} onClick={() => setRetroMode((current) => !current)} aria-pressed={retroMode} title={retroMode ? "Вернуться к обычному дизайну" : "Включить ретро-дизайн Windows"}>
+      <button type="button" className={`theme-floppy ${retroMode ? "is-active" : ""}`} onClick={() => { setThemeTransition(true); setRetroMode((current) => !current); window.setTimeout(() => setThemeTransition(false), 900); }} aria-pressed={retroMode} title={retroMode ? "Вернуться к обычному дизайну" : "Включить ретро-дизайн Windows"}>
         <span className="floppy-icon" aria-hidden="true">▣</span><span>{retroMode ? "Обычный вид" : "Ретро-режим"}</span>
       </button>
     </header>
