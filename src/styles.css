@@ -388,7 +388,7 @@ body:after {
 .retro-mode .button-icon{width:18px;height:18px;margin-right:6px}
 .retro-mode .folder-icon{width:32px;height:32px}
 .retro-mode .upload-fallback{display:none}
-.retro-mode .retro-artwork-corner{display:block;position:absolute;z-index:3;left:5px;bottom:5px;width:24px;height:24px;object-fit:fill;object-position:center;padding:0;background:transparent;border:0;image-rendering:pixelated;filter:drop-shadow(0 1px 1px rgba(0,0,0,.45))}
+.retro-mode .retro-artwork-corner{display:block;position:absolute;z-index:3;left:5px;bottom:5px;width:30px;height:30px;object-fit:fill;object-position:center;padding:0;background:transparent;border:0;image-rendering:pixelated;filter:drop-shadow(0 1px 1px rgba(0,0,0,.45))}
 .retro-mode .artwork-preview{position:relative}
 .retro-mode .hero h1{display:block}
 .retro-mode .hero h1 .music-disc-icon{position:relative}
@@ -461,25 +461,53 @@ body:after {
 }
 
 
-/* A soft radial wipe makes the selected visual style feel like it is taking over. */
-.theme-transitioning::after{
-  content:"";
-  position:fixed;
-  z-index:9999;
-  inset:0;
-  pointer-events:none;
-  background:#008080;
-  clip-path:circle(0 at calc(100% - 82px) 34px);
-  animation:theme-takeover .9s cubic-bezier(.2,.75,.25,1) both;
+
+/* Let the real interface morph between themes instead of covering it with a flat-color wipe. */
+.theme-transitioning,
+.theme-transitioning *{
+  transition:
+    color 1.15s cubic-bezier(.22,.61,.36,1),
+    background-color 1.15s cubic-bezier(.22,.61,.36,1),
+    border-color 1.15s cubic-bezier(.22,.61,.36,1),
+    border-radius 1.15s cubic-bezier(.22,.61,.36,1),
+    box-shadow 1.15s cubic-bezier(.22,.61,.36,1),
+    filter 1.15s cubic-bezier(.22,.61,.36,1),
+    opacity .8s cubic-bezier(.22,.61,.36,1),
+    transform 1.15s cubic-bezier(.22,.61,.36,1) !important;
 }
-.theme-transitioning:not(.retro-mode)::after{
-  background:radial-gradient(circle at 70% 25%,#222035 0%,#090b0f 60%);
+.theme-transitioning .hero,
+.theme-transitioning .dropzone,
+.theme-transitioning .search,
+.theme-transitioning .results,
+.theme-transitioning .result-card,
+.theme-transitioning .lyrics-card,
+.theme-transitioning .similar-card,
+.theme-transitioning .ai-card,
+.theme-transitioning .section-heading{
+  animation: theme-interface-arrive 1.2s cubic-bezier(.2,.75,.25,1) both;
 }
-@keyframes theme-takeover{
-  0%{clip-path:circle(0 at calc(100% - 82px) 34px);opacity:.92}
-  65%{opacity:1}
-  100%{clip-path:circle(150vmax at calc(100% - 82px) 34px);opacity:1}
+.theme-transitioning .hero{animation-delay:0ms}
+.theme-transitioning .dropzone{animation-delay:70ms}
+.theme-transitioning .search{animation-delay:130ms}
+.theme-transitioning .results{animation-delay:190ms}
+.theme-transitioning .result-card,
+.theme-transitioning .lyrics-card,
+.theme-transitioning .similar-card,
+.theme-transitioning .ai-card{animation-delay:250ms}
+@keyframes theme-interface-arrive{
+  0%{transform:translateY(9px) scale(.992);filter:saturate(.65);opacity:.88}
+  45%{transform:translateY(2px) scale(.998);filter:saturate(1.08);opacity:1}
+  100%{transform:translateY(0) scale(1);filter:saturate(1);opacity:1}
 }
 @media(prefers-reduced-motion:reduce){
-  .theme-transitioning::after{animation:none;opacity:0}
+  .theme-transitioning,.theme-transitioning *{transition:none!important}
+  .theme-transitioning .hero,
+  .theme-transitioning .dropzone,
+  .theme-transitioning .search,
+  .theme-transitioning .results,
+  .theme-transitioning .result-card,
+  .theme-transitioning .lyrics-card,
+  .theme-transitioning .similar-card,
+  .theme-transitioning .ai-card,
+  .theme-transitioning .section-heading{animation:none!important}
 }
