@@ -356,7 +356,7 @@ export default function App() {
 
     <section className="hero">
       <p className="eyebrow">AUDIO · LYRICS · DISCOVERY</p>
-      <h1>Найди музыку<br /><span>по любому следу.</span></h1>
+      <h1><img className="retro-inline-icon music-disc-icon" src="/winico/Music%20Disc.ico" alt="" aria-hidden="true" />Найди музыку<br /><span>по любому следу.</span></h1>
       <p className="subtitle">Загрузи фрагмент, запиши его с микрофона или найди песню по тексту.</p>
 
       <div className={`dropzone ${dragging ? "is-dragging" : ""}`}
@@ -364,7 +364,7 @@ export default function App() {
         onDragLeave={() => setDragging(false)} onDrop={onDrop}>
         <input id="file-input" type="file" accept="audio/*" hidden onChange={onInput} />
         <label htmlFor="file-input" className="dropzone-content">
-          <span className="upload-icon">↑</span>
+          <span className="upload-icon"><img className="retro-inline-icon folder-icon" src="/winico/Opened%20folder.ico" alt="" aria-hidden="true" /><span className="upload-fallback">↑</span></span>
           <strong>Перетащи аудиофайл сюда</strong><span>или нажми, чтобы выбрать файл</span>
         </label>
         <button className={`record ${recording ? "recording" : ""}`} onClick={recording ? stopRecording : startRecording}>
@@ -405,7 +405,7 @@ export default function App() {
     {loading && <section className="message">Ищем музыку…</section>}
 
     {yandexResult && <section className="results">
-      <div className="section-heading"><span>YANDEX AGENT</span><h2>Результат Yandex</h2></div>
+      <div className="section-heading"><span>YANDEX AGENT</span><h2><img className="retro-inline-icon sound-computer-icon" src="/winico/Sound%20computer.ico" alt="" aria-hidden="true" />Результат Yandex</h2></div>
       <div className="result-card">
         <div className="track-info">
           <span className="eyebrow">Yandex · confidence {Math.round(yandexResult.confidence * 100)}%</span>
@@ -455,10 +455,10 @@ export default function App() {
             {text && <div className="lyrics-preview">{isExpanded ? text : preview}</div>}
             <div className="lyrics-actions">
               {text.length > 240 && <button className="lyrics-toggle" onClick={() => setExpandedLyrics(isExpanded ? null : key)}>
-                {isExpanded ? "Свернуть текст ↑" : "Показать весь текст ↓"}
+                {isExpanded ? "Свернуть текст ↑" : <><img className="retro-inline-icon button-icon" src="/winico/notepad%20document.ico" alt="" aria-hidden="true" />Показать весь текст ↓</> }
               </button>}
               <button className="lyrics-toggle" onClick={() => void findSimilarLyrics(item)} disabled={similarLyricsLoading}>
-                {similarLyricsLoading ? "Ищем похожие…" : "Показать похожие"}
+                {similarLyricsLoading ? "Ищем похожие…" : <><img className="retro-inline-icon button-icon" src="/winico/search%20on%20earth.ico" alt="" aria-hidden="true" />Показать похожие</> }
               </button>
             </div>
           </div>
