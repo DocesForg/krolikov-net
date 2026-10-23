@@ -596,3 +596,10 @@ body:after {
 @media(prefers-reduced-motion:reduce){
   .retro-mode .hero h1 .font-switch-title .title-roulette{animation:none!important;font-family:Tahoma,"MS Sans Serif",Arial,sans-serif!important}
 }
+
+/* Never animate the layout-bearing wrapper itself. */
+.retro-mode .hero h1 .font-switch-title{
+  animation:none!important;
+  font-family:Tahoma,"MS Sans Serif",Arial,sans-serif!important;
+  will-change:auto;
+}
