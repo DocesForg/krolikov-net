@@ -69,6 +69,7 @@ export default function App() {
   const [previews, setPreviews] = useState<Record<string, { previewUrl: string; trackUrl: string }>>({});
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const [ambientColors, setAmbientColors] = useState<[string, string, string]>(BASE_AMBIENT_COLORS);
+  const [retroMode, setRetroMode] = useState(false);
 
   useEffect(() => {
     let activeAudio: HTMLAudioElement | null = null;
@@ -345,9 +346,12 @@ export default function App() {
   const onDrop = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); setDragging(false); onFile(e.dataTransfer.files[0]); };
   const onInput = (e: ChangeEvent<HTMLInputElement>) => onFile(e.target.files?.[0]);
 
-  return <main className={`app-shell ${isPreviewPlaying ? "is-preview-playing" : ""}`}>
+  return <main className={`app-shell ${isPreviewPlaying ? "is-preview-playing" : ""} ${retroMode ? "retro-mode" : ""}`}>
     <header className="topbar">
       <div className="brand"><img className="brand-mark" src="/krolikov-logo.png" alt="" aria-hidden="true" /><span>krolikov.net</span></div>
+      <button type="button" className={`theme-floppy ${retroMode ? "is-active" : ""}`} onClick={() => setRetroMode((current) => !current)} aria-pressed={retroMode} title={retroMode ? "Вернуться к обычному дизайну" : "Включить ретро-дизайн Windows"}>
+        <span className="floppy-icon" aria-hidden="true">▣</span><span>{retroMode ? "Обычный вид" : "Ретро-режим"}</span>
+      </button>
     </header>
 
     <section className="hero">
@@ -370,6 +374,7 @@ export default function App() {
 
       <div className="divider"><span>или поиск по тексту</span></div>
       <form className="search" onSubmit={(e) => { e.preventDefault(); void searchLyrics(); }}>
+        <img className="scrap-mascot" src="/scrap.gif" alt="" aria-hidden="true" />
         <textarea
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -382,6 +387,7 @@ export default function App() {
 
       <div className="divider"><span>или подобрать песни по жанру</span></div>
       <form className="search genre-search" onSubmit={(e) => { e.preventDefault(); void searchByGenre(); }}>
+        <img className="scrap-mascot" src="/scrap.gif" alt="" aria-hidden="true" />
         <input
           value={genre}
           onChange={(e) => setGenre(e.target.value)}
