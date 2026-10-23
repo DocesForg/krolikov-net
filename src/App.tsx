@@ -358,7 +358,7 @@ export default function App() {
 
     <section className="hero">
       <p className="eyebrow">AUDIO · LYRICS · DISCOVERY</p>
-      <h1><img className="retro-inline-icon music-disc-icon" src="/winico/Music%20Disc.ico" alt="" aria-hidden="true" />Найди музыку<br /><span>по любому следу.</span></h1>
+      <h1><img className="retro-inline-icon music-disc-icon" src="/winico/Music%20Disc.ico" alt="" aria-hidden="true" /><span className="font-switch-title">Найди музыку</span><br /><span className="font-switch-title">по любому следу.</span></h1>
       <p className="subtitle">Загрузи фрагмент, запиши его с микрофона или найди песню по тексту.</p>
 
       <div className={`dropzone ${dragging ? "is-dragging" : ""}`}
@@ -441,7 +441,7 @@ export default function App() {
     </section>}
 
     {lyrics.length > 0 && <section className="results">
-      <div className="section-heading"><span>LYRICS</span><div className="retro-window-controls" aria-hidden="true"><span>_</span><span>□</span><span>×</span></div><h2>Результаты по тексту</h2></div>
+      <div className="section-heading"><span>LYRICS</span><div className="retro-window-controls" aria-hidden="true"><span>_</span><span>□</span><span>×</span></div><h2><img className="retro-inline-icon section-heading-icon writing-sheet-icon" src="/winico/Writing%20on%20sheet.ico" alt="" aria-hidden="true" />Результаты по тексту</h2></div>
       <div className={"lyrics-grid " + (lyrics.length === 1 ? "is-single" : "")}>{lyrics.slice(0, 8).map((item, i) => {
         const key = item.artist + "-" + item.track + "-" + i;
         const isExpanded = expandedLyrics === key;
@@ -496,7 +496,7 @@ export default function App() {
     </section>}
 
     {similarLyrics.length > 0 && <section className="results">
-      <div className="section-heading"><span>SIMILAR LYRICS</span><div className="retro-window-controls" aria-hidden="true"><span>_</span><span>□</span><span>×</span></div><h2>Похожие треки с текстом</h2></div>
+      <div className="section-heading"><span>SIMILAR LYRICS</span><div className="retro-window-controls" aria-hidden="true"><span>_</span><span>□</span><span>×</span></div><h2><img className="retro-inline-icon section-heading-icon windows-disc-icon" src="/winico/Windows%20Disc.ico" alt="" aria-hidden="true" />Похожие треки с текстом</h2></div>
       <div className="lyrics-grid">
         {similarLyrics.map((item, i) => {
           const key = `similar-${item.artist}-${item.track}-${i}`;
