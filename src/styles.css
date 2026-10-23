@@ -372,3 +372,51 @@ body:after {
 @keyframes retro-disk-pulse{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
 @media(max-width:700px){.retro-mode .topbar{gap:10px;align-items:center}.retro-mode .theme-floppy{padding:8px;font-size:12px}.retro-mode .hero{padding:10px}.retro-mode .search{flex-direction:column;align-items:stretch}.retro-mode .scrap-mascot{align-self:center}.retro-mode .search button{min-height:44px}}
 @media(prefers-reduced-motion:reduce){.theme-floppy,.floppy-icon,.retro-mode .floppy-icon{animation:none!important;transition:none!important}}
+
+
+/* Windows icons and chrome are strictly scoped to retro mode. */
+.scrap-mascot{display:none}
+.retro-mode .scrap-mascot{display:block}
+.retro-inline-icon,.retro-artwork-corner{display:none}
+.retro-mode .retro-inline-icon{display:inline-block;object-fit:contain;vertical-align:middle;image-rendering:auto}
+.retro-mode .music-disc-icon{width:42px;height:42px;margin:0 10px 3px 0;animation:retro-disc-bob 2.8s ease-in-out infinite}
+@keyframes retro-disc-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+.retro-mode .sound-computer-icon{width:28px;height:28px;margin-right:9px}
+.retro-mode .button-icon{width:18px;height:18px;margin-right:6px}
+.retro-mode .folder-icon{width:32px;height:32px}
+.retro-mode .upload-fallback{display:none}
+.retro-mode .retro-artwork-corner{display:block;position:absolute;z-index:3;right:5px;top:5px;width:18px;height:18px;object-fit:contain;padding:2px;background:#c0c0c0;border:1px solid;border-color:#fff #404040 #404040 #fff}
+.retro-mode .artwork-preview{position:relative}
+.retro-mode .hero h1{display:block}
+.retro-mode .hero h1 .music-disc-icon{position:relative}
+.retro-mode .results .result-card,.retro-mode .results .lyrics-card,.retro-mode .results .similar-card,.retro-mode .results .ai-card{position:relative;padding-top:0;overflow:hidden}
+.retro-mode .results .result-card::before,.retro-mode .results .lyrics-card::before,.retro-mode .results .similar-card::before,.retro-mode .results .ai-card::before{
+  content:"krolikov.net";
+  display:flex;align-items:center;min-height:25px;margin:0 0 14px;padding:3px 7px;
+  color:#fff;font:700 12px Tahoma,"MS Sans Serif",Arial,sans-serif;letter-spacing:0;
+  background:linear-gradient(90deg,#000080 0%,#1084d0 58%,#000080 100%);
+  box-shadow:inset 1px 1px rgba(255,255,255,.3);
+}
+.retro-mode .results .result-card::after,.retro-mode .results .lyrics-card::after,.retro-mode .results .similar-card::after,.retro-mode .results .ai-card::after{
+  content:"_  □  ×";position:absolute;top:3px;right:4px;z-index:4;
+  display:flex;align-items:center;justify-content:center;min-width:58px;height:19px;padding:0 3px;
+  background:#c0c0c0;color:#000;font:700 12px Tahoma,"MS Sans Serif",Arial,sans-serif;letter-spacing:1px;
+  border:1px solid;border-color:#fff #404040 #404040 #fff;box-shadow:1px 1px 0 #000;
+}
+.retro-mode .results .result-card{display:block}
+.retro-mode .results .result-card .track-info{padding:0 14px 14px}
+.retro-mode .results .lyrics-card{display:grid;grid-template-columns:96px minmax(0,1fr);gap:18px;align-items:start}
+.retro-mode .results .lyrics-card::before{grid-column:1/-1;width:calc(100% + 0px);margin-bottom:0}
+.retro-mode .results .lyrics-card::after{top:3px}
+.retro-mode .results .similar-card{flex-wrap:wrap;gap:12px}
+.retro-mode .results .similar-card::before{flex-basis:100%;margin-bottom:0}
+.retro-mode .results .similar-card::after{top:3px}
+.retro-mode .section-heading h2{display:flex;align-items:center;justify-content:center;gap:0}
+.retro-mode .lyrics-toggle{display:inline-flex;align-items:center;justify-content:center;gap:4px}
+.retro-mode .scrap-mascot{order:0}
+@media(max-width:640px){
+ .retro-mode .music-disc-icon{width:34px;height:34px}
+ .retro-mode .results .lyrics-card{grid-template-columns:72px minmax(0,1fr);gap:12px}
+ .retro-mode .results .result-card::before,.retro-mode .results .lyrics-card::before,.retro-mode .results .similar-card::before,.retro-mode .results .ai-card::before{min-height:23px}
+}
+@media(prefers-reduced-motion:reduce){.retro-mode .music-disc-icon{animation:none}}
