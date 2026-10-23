@@ -419,3 +419,40 @@ body:after {
  .retro-mode .results .result-card::before,.retro-mode .results .lyrics-card::before,.retro-mode .results .similar-card::before,.retro-mode .results .ai-card::before{min-height:23px}
 }
 @media(prefers-reduced-motion:reduce){.retro-mode .music-disc-icon{animation:none}}
+
+
+/* Make each retro results window start flush with its title bar. */
+.retro-mode .results{
+  padding:0;
+  overflow:hidden;
+  border:2px solid;
+  border-color:#fff #404040 #404040 #fff;
+  background:#c0c0c0;
+  box-shadow:1px 1px 0 #000;
+}
+.retro-mode .results .section-heading{
+  margin:0 0 18px;
+}
+.retro-mode .results .section-heading>span:first-child{
+  width:auto;
+  min-height:28px;
+  margin:-2px -2px 0;
+}
+.retro-mode .results .section-heading h2{
+  margin:10px 12px 20px;
+}
+.retro-mode .results>.result-card,
+.retro-mode .results>.lyrics-grid,
+.retro-mode .results>.similar-grid,
+.retro-mode .results>.genre-recommendations{
+  margin-left:12px;
+  margin-right:12px;
+}
+.retro-mode .results>.result-card:last-child,
+.retro-mode .results>.lyrics-grid:last-child,
+.retro-mode .results>.similar-grid:last-child{
+  margin-bottom:12px;
+}
+@media(max-width:640px){
+  .retro-mode .results .section-heading>span:first-child{margin:-2px -2px 0;}
+}
