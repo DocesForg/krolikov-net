@@ -375,8 +375,8 @@ body:after {
 
 
 /* Windows icons and chrome are strictly scoped to retro mode. */
-/* Keep Windows-style labels and window buttons out of the standard design. */
-.section-heading>span:first-child,.retro-window-controls{display:none}
+/* Keep only Windows window buttons out of the standard design; preserve original section labels. */
+.retro-window-controls{display:none}
 
 .scrap-mascot{display:none}
 .retro-mode .scrap-mascot{display:block}
