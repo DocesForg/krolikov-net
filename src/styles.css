@@ -511,3 +511,36 @@ body:after {
   .theme-transitioning .ai-card,
   .theme-transitioning .section-heading{animation:none!important}
 }
+
+
+/* Fast, playful type roulette for the main discovery slogan. */
+.font-switch-title{
+  animation: title-font-roulette 1.65s steps(1,end) infinite;
+  will-change: font-family;
+}
+.font-switch-title:nth-of-type(2){animation-delay:-.11s}
+@keyframes title-font-roulette{
+  0%{font-family:Arial,sans-serif}
+  8%{font-family:Georgia,serif}
+  16%{font-family:"Courier New",monospace}
+  24%{font-family:"Trebuchet MS",sans-serif}
+  32%{font-family:Impact,fantasy}
+  40%{font-family:"Times New Roman",serif}
+  48%{font-family:"Comic Sans MS",cursive}
+  56%{font-family:"Lucida Console",monospace}
+  64%{font-family:"Arial Black",sans-serif}
+  72%{font-family:"Palatino Linotype",serif}
+  80%{font-family:system-ui,sans-serif}
+  88%{font-family:Verdana,sans-serif}
+  96%{font-family:cursive}
+}
+.retro-mode .section-heading-icon{
+  width:24px;
+  height:24px;
+  flex:none;
+  margin-right:8px;
+  object-fit:contain;
+}
+@media(prefers-reduced-motion:reduce){
+  .font-switch-title{animation:none!important;font-family:Tahoma,"MS Sans Serif",Arial,sans-serif!important}
+}
