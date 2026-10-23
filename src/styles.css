@@ -325,3 +325,189 @@ body:after {
   opacity: .9;
   transition: opacity .35s ease, filter .6s ease;
 }
+
+
+/* Optional Windows 95-inspired skin. All existing music/search behavior stays unchanged. */
+.theme-floppy{display:inline-flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid #4b4b4b;border-radius:8px;background:linear-gradient(180deg,#f4f4f4,#c8c8c8);color:#171717;font:600 13px Tahoma,"MS Sans Serif",Arial,sans-serif;cursor:pointer;box-shadow:inset 1px 1px #fff,inset -1px -1px #777,2px 2px 0 rgba(0,0,0,.22);transition:transform .22s ease,box-shadow .22s ease,background .22s ease}
+.theme-floppy:hover{transform:translateY(-2px);box-shadow:inset 1px 1px #fff,inset -1px -1px #777,3px 4px 0 rgba(0,0,0,.25)}
+.theme-floppy:active{transform:translate(1px,1px);box-shadow:inset 2px 2px #777,inset -1px -1px #fff}
+.floppy-icon{font-size:21px;line-height:1;display:inline-block;transform-origin:50% 60%}
+.theme-floppy:hover .floppy-icon{animation:floppy-save .65s ease-in-out}
+@keyframes floppy-save{0%{transform:rotate(0) scale(1)}25%{transform:rotate(-13deg) scale(1.12)}55%{transform:rotate(10deg) scale(.94)}100%{transform:rotate(0) scale(1)}}
+.scrap-mascot{width:46px;height:46px;object-fit:contain;flex:none;align-self:center;image-rendering:auto}
+.retro-mode{--ambient-a:#008080;--ambient-b:#008080;--ambient-c:#008080;width:min(1080px,calc(100% - 32px));padding-top:18px;color:#000;font-family:Tahoma,"MS Sans Serif",Arial,sans-serif}
+.retro-mode:before{content:"";position:fixed;inset:0;z-index:-1;background:#008080;pointer-events:none}
+.retro-mode .topbar{padding:8px 10px;margin-bottom:34px;background:#c0c0c0;border:2px solid;border-color:#fff #404040 #404040 #fff;box-shadow:1px 1px 0 #000;align-items:center}
+.retro-mode .brand{font:700 18px Tahoma,"MS Sans Serif",Arial,sans-serif;letter-spacing:0;color:#000}
+.retro-mode .brand-mark{width:32px;height:32px;filter:none}
+.retro-mode .hero{max-width:820px;padding:16px;background:#c0c0c0;border:2px solid;border-color:#fff #404040 #404040 #fff;box-shadow:1px 1px 0 #000}
+.retro-mode .eyebrow,.retro-mode .section-heading span{color:#333;font-family:Tahoma,"MS Sans Serif",Arial,sans-serif;letter-spacing:.04em}
+.retro-mode .hero h1{font-family:Tahoma,"MS Sans Serif",Arial,sans-serif;font-size:clamp(36px,6vw,64px);line-height:1.02;letter-spacing:-.045em;color:#000}
+.retro-mode .hero h1 span{color:#000}
+.retro-mode .subtitle{color:#222;font-size:16px}
+.retro-mode .dropzone,.retro-mode .search,.retro-mode .result-card,.retro-mode .lyrics-card,.retro-mode .similar-card,.retro-mode .message,.retro-mode .ai-card{border-radius:0;background:#c0c0c0;color:#000;border:2px solid;border-color:#fff #404040 #404040 #fff;box-shadow:1px 1px 0 #000;backdrop-filter:none}
+.retro-mode .dropzone{padding-top:30px}
+.retro-mode .dropzone-content>span:not(.upload-icon){color:#333}
+.retro-mode .upload-icon{border-radius:0;background:#d4d0c8;color:#000;border:2px solid;border-color:#fff #777 #777 #fff}
+.retro-mode .divider{color:#000}
+.retro-mode .divider:before,.retro-mode .divider:after{background:#555}
+.retro-mode .search{align-items:center;gap:8px;padding:8px}
+.retro-mode .search input,.retro-mode .search textarea{border:2px solid;border-color:#404040 #fff #fff #404040;background:#fff;color:#000;border-radius:0;font-family:Tahoma,"MS Sans Serif",Arial,sans-serif}
+.retro-mode .search input::placeholder,.retro-mode .search textarea::placeholder{color:#555}
+.retro-mode .search button,.retro-mode .actions button,.retro-mode .lyrics-toggle,.retro-mode .record{border-radius:0;background:#c0c0c0;color:#000;border:2px solid;border-color:#fff #404040 #404040 #fff;box-shadow:1px 1px 0 #000;font:600 13px Tahoma,"MS Sans Serif",Arial,sans-serif}
+.retro-mode .record{bottom:14px}
+.retro-mode .results{margin-top:42px;padding:12px;background:#c0c0c0;border:2px solid;border-color:#fff #404040 #404040 #fff;box-shadow:1px 1px 0 #000}
+.retro-mode .section-heading h2{font-size:24px;letter-spacing:0;color:#000}
+.retro-mode .result-card{padding:16px}
+.retro-mode .cover,.retro-mode .artwork-preview{border-radius:0}
+.retro-mode .track-info h2{font-size:30px;letter-spacing:0;color:#000}
+.retro-mode .track-info p,.retro-mode .lyrics-card p,.retro-mode .similar-card p{color:#333}
+.retro-mode .track-info small,.retro-mode .preview-meta{color:#333}
+.retro-mode .actions a{border-radius:0;border:2px solid;border-color:#fff #404040 #404040 #fff;color:#000}
+.retro-mode .lyrics-preview{color:#111}
+.retro-mode .lyrics-card h3,.retro-mode .similar-card strong{color:#000}
+.retro-mode footer{color:#111}
+.retro-mode .theme-floppy{background:#000080;color:#fff;border-color:#fff #404040 #404040 #fff}
+.retro-mode .floppy-icon{animation:retro-disk-pulse 1.6s ease-in-out infinite}
+@keyframes retro-disk-pulse{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+@media(max-width:700px){.retro-mode .topbar{gap:10px;align-items:center}.retro-mode .theme-floppy{padding:8px;font-size:12px}.retro-mode .hero{padding:10px}.retro-mode .search{flex-direction:column;align-items:stretch}.retro-mode .scrap-mascot{align-self:center}.retro-mode .search button{min-height:44px}}
+@media(prefers-reduced-motion:reduce){.theme-floppy,.floppy-icon,.retro-mode .floppy-icon{animation:none!important;transition:none!important}}
+
+
+/* Windows icons and chrome are strictly scoped to retro mode. */
+/* Keep only Windows window buttons out of the standard design; preserve original section labels. */
+.retro-window-controls{display:none}
+
+.scrap-mascot{display:none}
+.retro-mode .scrap-mascot{display:block}
+.retro-inline-icon,.retro-artwork-corner{display:none}
+.retro-mode .retro-inline-icon{display:inline-block;object-fit:contain;vertical-align:middle;image-rendering:auto}
+.retro-mode .music-disc-icon{width:42px;height:42px;margin:0 10px 3px 0;animation:retro-disc-bob 2.8s ease-in-out infinite}
+@keyframes retro-disc-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+.retro-mode .sound-computer-icon{width:28px;height:28px;margin-right:9px}
+.retro-mode .button-icon{width:18px;height:18px;margin-right:6px}
+.retro-mode .folder-icon{width:32px;height:32px}
+.retro-mode .upload-fallback{display:none}
+.retro-mode .retro-artwork-corner{display:block;position:absolute;z-index:3;left:5px;bottom:5px;width:30px;height:30px;object-fit:fill;object-position:center;padding:0;background:transparent;border:0;image-rendering:pixelated;filter:drop-shadow(0 1px 1px rgba(0,0,0,.45))}
+.retro-mode .artwork-preview{position:relative}
+.retro-mode .hero h1{display:block}
+.retro-mode .hero h1 .music-disc-icon{position:relative}
+.retro-mode .results .result-card,.retro-mode .results .lyrics-card,.retro-mode .results .similar-card,.retro-mode .results .ai-card{position:relative;padding-top:0;overflow:hidden}
+/* Window chrome belongs to each section heading, not to individual result cards. */
+.retro-mode .section-heading{position:relative;display:block;margin:0 0 18px;padding:0;text-align:left}
+.retro-mode .section-heading>span:first-child{
+  display:flex;align-items:center;min-height:28px;width:100%;box-sizing:border-box;
+  margin:0;padding:4px 116px 4px 8px;color:#fff;
+  background:linear-gradient(90deg,#000080 0%,#1084d0 58%,#000080 100%);
+  font:700 12px Tahoma,"MS Sans Serif",Arial,sans-serif;letter-spacing:.04em;
+  box-shadow:inset 1px 1px rgba(255,255,255,.3)
+}
+.retro-mode .retro-window-controls{position:absolute;top:3px;right:4px;display:flex;gap:3px;z-index:5}
+.retro-mode .retro-window-controls span{
+  display:flex;align-items:center;justify-content:center;width:20px;height:20px;box-sizing:border-box;
+  background:#c0c0c0;color:#000;font:700 13px Tahoma,"MS Sans Serif",Arial,sans-serif;line-height:1;
+  border:1px solid;border-color:#fff #404040 #404040 #fff;box-shadow:1px 1px 0 #000
+}
+.retro-mode .section-heading h2{margin:10px 0 20px;text-align:left}
+.retro-mode .results .result-card{display:block;padding:0;overflow:visible}
+.retro-mode .results .result-card .track-info{padding:16px}
+.retro-mode .results .lyrics-card{display:grid;grid-template-columns:96px minmax(0,1fr);gap:18px;align-items:start;padding:12px;overflow:visible}
+.retro-mode .results .similar-card{gap:12px;overflow:visible}
+.retro-mode .section-heading h2{display:flex;align-items:center;justify-content:center;gap:0}
+.retro-mode .lyrics-toggle{display:inline-flex;align-items:center;justify-content:center;gap:4px}
+.retro-mode .scrap-mascot{order:0}
+@media(max-width:640px){
+ .retro-mode .music-disc-icon{width:34px;height:34px}
+ .retro-mode .results .lyrics-card{grid-template-columns:72px minmax(0,1fr);gap:12px}
+ .retro-mode .results .result-card::before,.retro-mode .results .lyrics-card::before,.retro-mode .results .similar-card::before,.retro-mode .results .ai-card::before{min-height:23px}
+}
+@media(prefers-reduced-motion:reduce){.retro-mode .music-disc-icon{animation:none}}
+
+
+/* Make each retro results window start flush with its title bar. */
+.retro-mode .results{
+  padding:0;
+  overflow:hidden;
+  border:2px solid;
+  border-color:#fff #404040 #404040 #fff;
+  background:#c0c0c0;
+  box-shadow:1px 1px 0 #000;
+}
+.retro-mode .results .section-heading{
+  margin:0 0 18px;
+}
+.retro-mode .results .section-heading>span:first-child{
+  width:auto;
+  min-height:28px;
+  margin:-2px -2px 0;
+}
+.retro-mode .results .section-heading h2{
+  margin:10px 12px 20px;
+}
+.retro-mode .results>.result-card,
+.retro-mode .results>.lyrics-grid,
+.retro-mode .results>.similar-grid,
+.retro-mode .results>.genre-recommendations{
+  margin-left:12px;
+  margin-right:12px;
+}
+.retro-mode .results>.result-card:last-child,
+.retro-mode .results>.lyrics-grid:last-child,
+.retro-mode .results>.similar-grid:last-child{
+  margin-bottom:12px;
+}
+@media(max-width:640px){
+  .retro-mode .results .section-heading>span:first-child{margin:-2px -2px 0;}
+}
+
+
+
+/* Let the real interface morph between themes instead of covering it with a flat-color wipe. */
+.theme-transitioning,
+.theme-transitioning *{
+  transition:
+    color 1.15s cubic-bezier(.22,.61,.36,1),
+    background-color 1.15s cubic-bezier(.22,.61,.36,1),
+    border-color 1.15s cubic-bezier(.22,.61,.36,1),
+    border-radius 1.15s cubic-bezier(.22,.61,.36,1),
+    box-shadow 1.15s cubic-bezier(.22,.61,.36,1),
+    filter 1.15s cubic-bezier(.22,.61,.36,1),
+    opacity .8s cubic-bezier(.22,.61,.36,1),
+    transform 1.15s cubic-bezier(.22,.61,.36,1) !important;
+}
+.theme-transitioning .hero,
+.theme-transitioning .dropzone,
+.theme-transitioning .search,
+.theme-transitioning .results,
+.theme-transitioning .result-card,
+.theme-transitioning .lyrics-card,
+.theme-transitioning .similar-card,
+.theme-transitioning .ai-card,
+.theme-transitioning .section-heading{
+  animation: theme-interface-arrive 1.2s cubic-bezier(.2,.75,.25,1) both;
+}
+.theme-transitioning .hero{animation-delay:0ms}
+.theme-transitioning .dropzone{animation-delay:70ms}
+.theme-transitioning .search{animation-delay:130ms}
+.theme-transitioning .results{animation-delay:190ms}
+.theme-transitioning .result-card,
+.theme-transitioning .lyrics-card,
+.theme-transitioning .similar-card,
+.theme-transitioning .ai-card{animation-delay:250ms}
+@keyframes theme-interface-arrive{
+  0%{transform:translateY(9px) scale(.992);filter:saturate(.65);opacity:.88}
+  45%{transform:translateY(2px) scale(.998);filter:saturate(1.08);opacity:1}
+  100%{transform:translateY(0) scale(1);filter:saturate(1);opacity:1}
+}
+@media(prefers-reduced-motion:reduce){
+  .theme-transitioning,.theme-transitioning *{transition:none!important}
+  .theme-transitioning .hero,
+  .theme-transitioning .dropzone,
+  .theme-transitioning .search,
+  .theme-transitioning .results,
+  .theme-transitioning .result-card,
+  .theme-transitioning .lyrics-card,
+  .theme-transitioning .similar-card,
+  .theme-transitioning .ai-card,
+  .theme-transitioning .section-heading{animation:none!important}
+}

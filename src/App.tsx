@@ -48,6 +48,7 @@ function ArtworkPreview({ src, alt, previewUrl }: { src?: string | null; alt: st
       </button>
       <span className="artwork-preview-label">30 сек.</span>
     </>}
+    <img className="retro-artwork-corner" src="/winico/Shortcut.ico" alt="" aria-hidden="true" />
   </div>;
 }
 
@@ -69,6 +70,8 @@ export default function App() {
   const [previews, setPreviews] = useState<Record<string, { previewUrl: string; trackUrl: string }>>({});
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
   const [ambientColors, setAmbientColors] = useState<[string, string, string]>(BASE_AMBIENT_COLORS);
+  const [retroMode, setRetroMode] = useState(false);
+  const [themeTransition, setThemeTransition] = useState(false);
 
   useEffect(() => {
     let activeAudio: HTMLAudioElement | null = null;
@@ -345,14 +348,17 @@ export default function App() {
   const onDrop = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); setDragging(false); onFile(e.dataTransfer.files[0]); };
   const onInput = (e: ChangeEvent<HTMLInputElement>) => onFile(e.target.files?.[0]);
 
-  return <main className={`app-shell ${isPreviewPlaying ? "is-preview-playing" : ""}`}>
+  return <main className={`app-shell ${isPreviewPlaying ? "is-preview-playing" : ""} ${retroMode ? "retro-mode" : ""} ${themeTransition ? "theme-transitioning" : ""}`}>
     <header className="topbar">
       <div className="brand"><img className="brand-mark" src="/krolikov-logo.png" alt="" aria-hidden="true" /><span>krolikov.net</span></div>
+      <button type="button" className={`theme-floppy ${retroMode ? "is-active" : ""}`} onClick={() => { setThemeTransition(true); setRetroMode((current) => !current); window.setTimeout(() => setThemeTransition(false), 900); }} aria-pressed={retroMode} title={retroMode ? "Вернуться к обычному дизайну" : "Включить ретро-дизайн Windows"}>
+        <span className="floppy-icon" aria-hidden="true">▣</span><span>{retroMode ? "Обычный вид" : "Ретро-режим"}</span>
+      </button>
     </header>
 
     <section className="hero">
       <p className="eyebrow">AUDIO · LYRICS · DISCOVERY</p>
-      <h1>Найди музыку<br /><span>по любому следу.</span></h1>
+      <h1><img className="retro-inline-icon music-disc-icon" src="/winico/Music%20Disc.ico" alt="" aria-hidden="true" />Найди музыку<br /><span>по любому следу.</span></h1>
       <p className="subtitle">Загрузи фрагмент, запиши его с микрофона или найди песню по тексту.</p>
 
       <div className={`dropzone ${dragging ? "is-dragging" : ""}`}
@@ -360,7 +366,7 @@ export default function App() {
         onDragLeave={() => setDragging(false)} onDrop={onDrop}>
         <input id="file-input" type="file" accept="audio/*" hidden onChange={onInput} />
         <label htmlFor="file-input" className="dropzone-content">
-          <span className="upload-icon">↑</span>
+          <span className="upload-icon"><img className="retro-inline-icon folder-icon" src="/winico/Opened%20Folder.ico" alt="" aria-hidden="true" /><span className="upload-fallback">↑</span></span>
           <strong>Перетащи аудиофайл сюда</strong><span>или нажми, чтобы выбрать файл</span>
         </label>
         <button className={`record ${recording ? "recording" : ""}`} onClick={recording ? stopRecording : startRecording}>
@@ -370,6 +376,7 @@ export default function App() {
 
       <div className="divider"><span>или поиск по тексту</span></div>
       <form className="search" onSubmit={(e) => { e.preventDefault(); void searchLyrics(); }}>
+        <img className="scrap-mascot" src="/scrap.gif" alt="" aria-hidden="true" />
         <textarea
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -382,6 +389,7 @@ export default function App() {
 
       <div className="divider"><span>или подобрать песни по жанру</span></div>
       <form className="search genre-search" onSubmit={(e) => { e.preventDefault(); void searchByGenre(); }}>
+        <img className="scrap-mascot" src="/scrap.gif" alt="" aria-hidden="true" />
         <input
           value={genre}
           onChange={(e) => setGenre(e.target.value)}
@@ -399,7 +407,7 @@ export default function App() {
     {loading && <section className="message">Ищем музыку…</section>}
 
     {yandexResult && <section className="results">
-      <div className="section-heading"><span>YANDEX AGENT</span><h2>Результат Yandex</h2></div>
+      <div className="section-heading"><span>YANDEX AGENT</span><div className="retro-window-controls" aria-hidden="true"><span>_</span><span>□</span><span>×</span></div><h2><img className="retro-inline-icon sound-computer-icon" src="/winico/Sound%20computer.ico" alt="" aria-hidden="true" />Результат Yandex</h2></div>
       <div className="result-card">
         <div className="track-info">
           <span className="eyebrow">Yandex · confidence {Math.round(yandexResult.confidence * 100)}%</span>
@@ -433,7 +441,7 @@ export default function App() {
     </section>}
 
     {lyrics.length > 0 && <section className="results">
-      <div className="section-heading"><span>LYRICS</span><h2>Результаты по тексту</h2></div>
+      <div className="section-heading"><span>LYRICS</span><div className="retro-window-controls" aria-hidden="true"><span>_</span><span>□</span><span>×</span></div><h2>Результаты по тексту</h2></div>
       <div className={"lyrics-grid " + (lyrics.length === 1 ? "is-single" : "")}>{lyrics.slice(0, 8).map((item, i) => {
         const key = item.artist + "-" + item.track + "-" + i;
         const isExpanded = expandedLyrics === key;
@@ -449,10 +457,10 @@ export default function App() {
             {text && <div className="lyrics-preview">{isExpanded ? text : preview}</div>}
             <div className="lyrics-actions">
               {text.length > 240 && <button className="lyrics-toggle" onClick={() => setExpandedLyrics(isExpanded ? null : key)}>
-                {isExpanded ? "Свернуть текст ↑" : "Показать весь текст ↓"}
+                <><img className="retro-inline-icon button-icon" src="/winico/Notepad%20document.ico" alt="" aria-hidden="true" />{isExpanded ? "Свернуть текст ↑" : "Показать весь текст ↓"}</>
               </button>}
               <button className="lyrics-toggle" onClick={() => void findSimilarLyrics(item)} disabled={similarLyricsLoading}>
-                {similarLyricsLoading ? "Ищем похожие…" : "Показать похожие"}
+                <><img className="retro-inline-icon button-icon" src="/winico/Search%20on%20Earth.ico" alt="" aria-hidden="true" />{similarLyricsLoading ? "Ищем похожие…" : "Показать похожие"}</>
               </button>
             </div>
           </div>
@@ -461,7 +469,7 @@ export default function App() {
     </section>}
 
     {genreLyrics.length > 0 && <section className="results">
-      <div className="section-heading"><span>YANDEX · LRCLIB</span><h2>Песни в жанре «{genre}»</h2></div>
+      <div className="section-heading"><span>YANDEX · LRCLIB</span><div className="retro-window-controls" aria-hidden="true"><span>_</span><span>□</span><span>×</span></div><h2>Песни в жанре «{genre}»</h2></div>
       {genreRecommendations.length > 0 && <div className="genre-recommendations">
         {genreRecommendations.map((item, i) => <span key={`${item.artist}-${item.title}-${i}`}>{item.artist} — {item.title}</span>)}
       </div>}
@@ -479,7 +487,7 @@ export default function App() {
               {renderPreview(item.artist, item.track)}
               {text && <div className="lyrics-preview">{isExpanded ? text : preview}</div>}
               {text.length > 240 && <button className="lyrics-toggle" onClick={() => setExpandedLyrics(isExpanded ? null : key)}>
-                {isExpanded ? "Свернуть текст ↑" : "Показать весь текст ↓"}
+                <><img className="retro-inline-icon button-icon" src="/winico/Notepad%20document.ico" alt="" aria-hidden="true" />{isExpanded ? "Свернуть текст ↑" : "Показать весь текст ↓"}</>
               </button>}
             </div>
           </article>;
@@ -488,7 +496,7 @@ export default function App() {
     </section>}
 
     {similarLyrics.length > 0 && <section className="results">
-      <div className="section-heading"><span>SIMILAR LYRICS</span><h2>Похожие треки с текстом</h2></div>
+      <div className="section-heading"><span>SIMILAR LYRICS</span><div className="retro-window-controls" aria-hidden="true"><span>_</span><span>□</span><span>×</span></div><h2>Похожие треки с текстом</h2></div>
       <div className="lyrics-grid">
         {similarLyrics.map((item, i) => {
           const key = `similar-${item.artist}-${item.track}-${i}`;
@@ -503,7 +511,7 @@ export default function App() {
               {renderPreview(item.artist, item.track)}
               {text && <div className="lyrics-preview">{isExpanded ? text : preview}</div>}
               {text.length > 240 && <button className="lyrics-toggle" onClick={() => setExpandedLyrics(isExpanded ? null : key)}>
-                {isExpanded ? "Свернуть текст ↑" : "Показать весь текст ↓"}
+                <><img className="retro-inline-icon button-icon" src="/winico/Notepad%20document.ico" alt="" aria-hidden="true" />{isExpanded ? "Свернуть текст ↑" : "Показать весь текст ↓"}</>
               </button>}
             </div>
           </article>;
@@ -512,7 +520,7 @@ export default function App() {
     </section>}
 
     {similar.length > 0 && <section className="results">
-      <div className="section-heading"><span>DISCOVERY</span><h2>Похожие треки</h2></div>
+      <div className="section-heading"><span>DISCOVERY</span><div className="retro-window-controls" aria-hidden="true"><span>_</span><span>□</span><span>×</span></div><h2>Похожие треки</h2></div>
       <div className="similar-grid">{similar.map((item, i) =>
         <article className="similar-card" key={`${item.artist}-${item.title}-${i}`}>
           <ArtworkPreview src={item.artworkUrl} alt={`${item.title} — ${item.artist}`} previewUrl={previews[previewKey(item.artist, item.title)]?.previewUrl} />
