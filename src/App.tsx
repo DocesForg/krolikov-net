@@ -48,7 +48,7 @@ function ArtworkPreview({ src, alt, previewUrl }: { src?: string | null; alt: st
       </button>
       <span className="artwork-preview-label">30 сек.</span>
     </>}
-    <img className="retro-artwork-corner" src="/winico/Arrow%20(up).ico" alt="" aria-hidden="true" />
+    <img className="retro-artwork-corner" src="/winico/Shortcut.ico" alt="" aria-hidden="true" />
   </div>;
 }
 
@@ -456,10 +456,10 @@ export default function App() {
             {text && <div className="lyrics-preview">{isExpanded ? text : preview}</div>}
             <div className="lyrics-actions">
               {text.length > 240 && <button className="lyrics-toggle" onClick={() => setExpandedLyrics(isExpanded ? null : key)}>
-                {isExpanded ? "Свернуть текст ↑" : <><img className="retro-inline-icon button-icon" src="/winico/Notepad%20document.ico" alt="" aria-hidden="true" />Показать весь текст ↓</> }
+                <><img className="retro-inline-icon button-icon" src="/winico/Notepad%20document.ico" alt="" aria-hidden="true" />{isExpanded ? "Свернуть текст ↑" : "Показать весь текст ↓"}</>
               </button>}
               <button className="lyrics-toggle" onClick={() => void findSimilarLyrics(item)} disabled={similarLyricsLoading}>
-                {similarLyricsLoading ? "Ищем похожие…" : <><img className="retro-inline-icon button-icon" src="/winico/Search%20on%20Earth.ico" alt="" aria-hidden="true" />Показать похожие</> }
+                <><img className="retro-inline-icon button-icon" src="/winico/Search%20on%20Earth.ico" alt="" aria-hidden="true" />{similarLyricsLoading ? "Ищем похожие…" : "Показать похожие"}</>
               </button>
             </div>
           </div>
@@ -486,7 +486,7 @@ export default function App() {
               {renderPreview(item.artist, item.track)}
               {text && <div className="lyrics-preview">{isExpanded ? text : preview}</div>}
               {text.length > 240 && <button className="lyrics-toggle" onClick={() => setExpandedLyrics(isExpanded ? null : key)}>
-                {isExpanded ? "Свернуть текст ↑" : <><img className="retro-inline-icon button-icon" src="/winico/Notepad%20document.ico" alt="" aria-hidden="true" />Показать весь текст ↓</> }
+                <><img className="retro-inline-icon button-icon" src="/winico/Notepad%20document.ico" alt="" aria-hidden="true" />{isExpanded ? "Свернуть текст ↑" : "Показать весь текст ↓"}</>
               </button>}
             </div>
           </article>;
@@ -510,7 +510,7 @@ export default function App() {
               {renderPreview(item.artist, item.track)}
               {text && <div className="lyrics-preview">{isExpanded ? text : preview}</div>}
               {text.length > 240 && <button className="lyrics-toggle" onClick={() => setExpandedLyrics(isExpanded ? null : key)}>
-                {isExpanded ? "Свернуть текст ↑" : <><img className="retro-inline-icon button-icon" src="/winico/Notepad%20document.ico" alt="" aria-hidden="true" />Показать весь текст ↓</> }
+                <><img className="retro-inline-icon button-icon" src="/winico/Notepad%20document.ico" alt="" aria-hidden="true" />{isExpanded ? "Свернуть текст ↑" : "Показать весь текст ↓"}</>
               </button>}
             </div>
           </article>;
