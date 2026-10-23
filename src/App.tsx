@@ -47,6 +47,7 @@ function ArtworkPreview({ src, alt, previewUrl }: { src?: string | null; alt: st
         {playing ? <span className="pause-icon" aria-hidden="true" /> : <span className="play-icon" aria-hidden="true">▶</span>}
       </button>
       <span className="artwork-preview-label">30 сек.</span>
+      <img className="retro-artwork-corner" src="/winico/arrow%20(up).ico" alt="" aria-hidden="true" />
     </>}
   </div>;
 }
